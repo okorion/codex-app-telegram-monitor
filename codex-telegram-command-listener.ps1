@@ -274,7 +274,7 @@ function New-ResultMessage {
         "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
         "",
         "<b>$ResultLabel`: $($Result.Icon) $($Result.Badge)</b>",
-        "점검 대상: Codex 앱"
+        "대상: Codex App"
     )
 
     if (![string]::IsNullOrWhiteSpace([string]$Result.BeforeState)) {

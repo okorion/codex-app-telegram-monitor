@@ -104,7 +104,7 @@ if ($TelegramTest) {
         "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
         "",
         "<b>알림 테스트: ✅ 정상</b>",
-        "대상: Codex 앱 상태 점검 알림",
+        "대상: Codex App",
         "결과: 전용 텔레그램 봇 연결 정상",
         "",
         "Processed at: $(ConvertTo-TelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
@@ -148,7 +148,7 @@ $messageLines = @(
     "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
     "",
     "<b>점검 결과: $statusIcon $badge</b>",
-    "점검 대상: Codex 앱",
+    "대상: Codex App",
     "앱 실행 상태: $(ConvertTo-TelegramHtml $appState)"
 )
 
