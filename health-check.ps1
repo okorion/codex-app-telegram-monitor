@@ -89,6 +89,12 @@ if (![string]::IsNullOrWhiteSpace($envValues["CODEX_HEARTBEAT_STALE_SECONDS"])) 
 $heartbeatAgeSeconds = if ($null -ne $heartbeatAt) { [math]::Max(0, [int]((Get-Date) - $heartbeatAt).TotalSeconds) } else { $null }
 $heartbeatFresh = $null -ne $heartbeatAgeSeconds -and $heartbeatAgeSeconds -le $heartbeatStaleSeconds
 $logFileSizeBytes = if (Test-Path -LiteralPath $logFile) { (Get-Item -LiteralPath $logFile).Length } else { 0 }
+$pollingConflictStaleSeconds = 3600
+if (![string]::IsNullOrWhiteSpace($envValues["CODEX_POLLING_CONFLICT_STALE_SECONDS"])) {
+    [int]::TryParse($envValues["CODEX_POLLING_CONFLICT_STALE_SECONDS"], [ref]$pollingConflictStaleSeconds) | Out-Null
+}
+$recentLogLines = if (Test-Path -LiteralPath $logFile) { @(Get-Content -LiteralPath $logFile -Tail 100) } else { @() }
+$pollingConflictDetected = Test-CodexRecentTelegramConflict -Lines $recentLogLines -StaleSeconds $pollingConflictStaleSeconds
 $deviceName = if (![string]::IsNullOrWhiteSpace($envValues["CODEX_DEVICE_NAME"]) -and $envValues["CODEX_DEVICE_NAME"] -ne "auto") {
     $envValues["CODEX_DEVICE_NAME"]
 } else {
@@ -127,6 +133,8 @@ $deviceName = if (![string]::IsNullOrWhiteSpace($envValues["CODEX_DEVICE_NAME"])
     CommandListenerHeartbeatAt = if ($heartbeatAt) { $heartbeatAt.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
     CommandListenerHeartbeatAgeSeconds = $heartbeatAgeSeconds
     CommandListenerHeartbeatFresh = $heartbeatFresh
+    CommandListenerPollingConflictStaleSeconds = $pollingConflictStaleSeconds
+    CommandListenerPollingConflictDetected = $pollingConflictDetected
     CommandListenerLogFileExists = Test-Path -LiteralPath $logFile
     CommandListenerLogSizeBytes = $logFileSizeBytes
 } | Format-List

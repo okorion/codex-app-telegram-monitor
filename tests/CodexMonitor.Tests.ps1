@@ -75,6 +75,17 @@
         Test-CodexTelegramConflictText -Text "The operation timed out" | Should -BeFalse
     }
 
+    It "treats only recent Telegram polling conflicts as active" {
+        $now = [datetime]"2026-06-25 12:00:00"
+        $lines = @(
+            "[2026-06-25 10:55:00] Telegram polling conflict: old getUpdates conflict",
+            "[2026-06-25 11:59:00] Telegram polling conflict: recent getUpdates conflict"
+        )
+
+        Test-CodexRecentTelegramConflict -Lines $lines -StaleSeconds 3600 -Now $now | Should -BeTrue
+        Test-CodexRecentTelegramConflict -Lines @($lines[0]) -StaleSeconds 3600 -Now $now | Should -BeFalse
+    }
+
     It "redacts common local user paths" {
         $appDataPath = "C:\Users\alice\AppData\Local\Temp\sample.txt"
         $codexPath = "C:\Users\alice\Documents" + "\Codex\repo"
@@ -136,5 +147,77 @@ Describe "Codex Telegram listener helpers" {
         $script:sentMessages[0].ChatId | Should -Be "111"
         $script:sentMessages[0].Message | Should -Match "DRY-RUN"
         $script:sentMessages[0].Message | Should -Match "현재 실행 상태"
+    }
+
+    It "ignores ordinary group messages that do not target the bot" {
+        $script:sentMessages = @()
+        $script:listenerLogs = @()
+        $script:BotUsername = "codex_manager_bot"
+
+        function Test-AllowedChatId {
+            param([Parameter(Mandatory = $true)][string]$ChatId)
+            return $true
+        }
+
+        function Send-TelegramMessage {
+            param(
+                [Parameter(Mandatory = $true)][string]$ChatId,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            $script:sentMessages += $Message
+        }
+
+        function Write-ListenerLog {
+            param([Parameter(Mandatory = $true)][string]$Message)
+            $script:listenerLogs += $Message
+        }
+
+        $update = [PSCustomObject]@{
+            message = [PSCustomObject]@{
+                text = "codex status"
+                chat = [PSCustomObject]@{
+                    id = 111
+                    type = "group"
+                }
+            }
+        }
+
+        Handle-TelegramUpdate -Update $update
+
+        $script:sentMessages.Count | Should -Be 0
+        $script:listenerLogs -join "`n" | Should -Match "그룹 채팅의 일반 메시지"
+    }
+
+    It "shows polling conflict state in the health message" {
+        function Get-CodexAllowedChatIds { @("111") }
+        function Get-CodexCommandAllowedChatIds { @("111") }
+        function Get-CodexStartAllowedChatIds { @("111") }
+        function Get-TaskHealth {
+            param([Parameter(Mandatory = $true)][string]$TaskName)
+            return @{
+                Exists = $true
+                UsesEnvFile = $true
+                State = "Ready"
+            }
+        }
+        function Get-ListenerHeartbeatStatus {
+            return @{
+                Exists = $true
+                Fresh = $true
+                TimestampText = "2026-06-25 12:00:00"
+                AgeText = "1초 전"
+            }
+        }
+        function Test-CodexTelegramBot { return $true }
+        function Test-CodexEnvFileProtected { return $true }
+        function Test-RecentPollingConflict { return $true }
+
+        [Environment]::SetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "dummy", "Process")
+
+        $message = New-HealthMessage
+
+        $message | Should -Match "상태 점검: ⚠️ WARN"
+        $message | Should -Match "Polling conflict: ⚠️ 최근 감지됨"
     }
 }

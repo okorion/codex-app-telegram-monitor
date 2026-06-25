@@ -2,6 +2,15 @@
 
 Codex App Telegram Monitor의 주요 변경 사항을 기록합니다.
 
+## 0.4.0 - 2026-06-25
+
+- polling conflict WARN이 오래된 로그 때문에 계속 남지 않도록 `CODEX_POLLING_CONFLICT_STALE_SECONDS` 시간 기준을 추가했습니다.
+- `/h`, `diagnose.ps1`, `health-check.ps1`가 같은 polling conflict 시간 기준을 사용하도록 정리했습니다.
+- GUI chat ID 감지 버튼이 로컬 command listener를 잠시 중지하고 감지 후 다시 시작하도록 개선했습니다.
+- 콘솔 설정 스크립트도 chat ID 감지 중 로컬 listener를 잠시 중지하고, Telegram `409 Conflict` 발생 시 더 명확한 안내를 출력합니다.
+- `SUPPORT.ko.md`를 기본 한국어 지원 문서와 충돌하지 않는 호환 안내 문서로 정리했습니다.
+- polling conflict 시간 기준, 그룹 메시지 무시, `/h` conflict 표시 테스트를 추가했습니다.
+
 ## 0.3.0 - 2026-06-25
 
 - GitHub Actions checkout을 v5로 올려 Node.js 20 deprecation 경고를 제거했습니다.

@@ -10,6 +10,8 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $existing = Read-CodexDotEnvKeys -Path $EnvFile
+$taskPath = "\Codex\"
+$listenerTaskName = "Codex Telegram Command Listener"
 
 function Get-ExistingValue {
     param([Parameter(Mandatory = $true)][string]$Key, [string]$Default = "")
@@ -118,6 +120,27 @@ function Get-LatestTelegramChatFromUpdates {
     }
 
     return $candidates | Sort-Object UpdateId -Descending | Select-Object -First 1
+}
+
+function Invoke-WithListenerPausedForTelegramPolling {
+    param([Parameter(Mandatory = $true)][scriptblock]$Operation)
+
+    $listenerTask = Get-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath -ErrorAction SilentlyContinue
+    $wasRunning = $listenerTask -and $listenerTask.State -eq "Running"
+    $script:CodexGuiListenerWasPaused = $wasRunning
+
+    if ($wasRunning) {
+        Stop-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath
+        Start-Sleep -Seconds 3
+    }
+
+    try {
+        & $Operation
+    } finally {
+        if ($wasRunning) {
+            Start-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath
+        }
+    }
 }
 
 function Set-DetectedChatFields {
@@ -258,7 +281,8 @@ $saveButton.Add_Click({
             "CODEX_PROCESS_PATH_PATTERN=$(Get-ExistingValue -Key "CODEX_PROCESS_PATH_PATTERN" -Default "auto")",
             "CODEX_LOG_MAX_BYTES=$(Get-ExistingValue -Key "CODEX_LOG_MAX_BYTES" -Default "1048576")",
             "CODEX_LOG_KEEP_FILES=$(Get-ExistingValue -Key "CODEX_LOG_KEEP_FILES" -Default "5")",
-            "CODEX_HEARTBEAT_STALE_SECONDS=$(Get-ExistingValue -Key "CODEX_HEARTBEAT_STALE_SECONDS" -Default "120")"
+            "CODEX_HEARTBEAT_STALE_SECONDS=$(Get-ExistingValue -Key "CODEX_HEARTBEAT_STALE_SECONDS" -Default "120")",
+            "CODEX_POLLING_CONFLICT_STALE_SECONDS=$(Get-ExistingValue -Key "CODEX_POLLING_CONFLICT_STALE_SECONDS" -Default "3600")"
         )
 
         $envDir = Split-Path -Parent $EnvFile
@@ -276,11 +300,16 @@ $saveButton.Add_Click({
 
 $detectChatButton.Add_Click({
     try {
-        $detectedChat = Get-LatestTelegramChatFromUpdates -Token (Get-GuiBotToken)
+        $detectedChat = Invoke-WithListenerPausedForTelegramPolling {
+            Get-LatestTelegramChatFromUpdates -Token (Get-GuiBotToken)
+        }
+        $pausedTask = [bool]$script:CodexGuiListenerWasPaused
+        $script:CodexGuiListenerWasPaused = $false
         Set-DetectedChatFields -DetectedChat $detectedChat
         $nameLine = if ([string]::IsNullOrWhiteSpace($detectedChat.Name)) { "" } else { "`n이름: $($detectedChat.Name)" }
+        $listenerLine = if ($pausedTask) { "`nListener: 감지 후 다시 시작됨" } else { "" }
         [System.Windows.Forms.MessageBox]::Show(
-            "chat ID 감지 완료`nchat ID: $($detectedChat.Id)`nType: $($detectedChat.Type)$nameLine",
+            "chat ID 감지 완료`nchat ID: $($detectedChat.Id)`nType: $($detectedChat.Type)$nameLine$listenerLine",
             "Codex App Telegram Monitor"
         ) | Out-Null
     } catch {

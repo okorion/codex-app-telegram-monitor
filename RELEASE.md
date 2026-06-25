@@ -31,8 +31,8 @@ git ls-files .env logs state
 5. `VERSION`과 일치하는 tag를 만듭니다.
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 6. GitHub Release workflow가 `VERSION`을 검증하고, `git archive`로 추적 파일만 포함한 ZIP을 만들고, `CHANGELOG.md`의 해당 version 섹션만 release notes로 게시합니다.

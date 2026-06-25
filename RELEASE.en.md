@@ -31,8 +31,8 @@ git ls-files .env logs state
 5. Create a tag matching `VERSION`, for example:
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 6. The GitHub Release workflow validates `VERSION`, creates a tracked-file ZIP with `git archive`, and publishes only the matching `CHANGELOG.md` version section as release notes.

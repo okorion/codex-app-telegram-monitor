@@ -8,6 +8,31 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
 
+$taskPath = "\Codex\"
+$listenerTaskName = "Codex Telegram Command Listener"
+
+function Invoke-WithListenerPausedForTelegramPolling {
+    param([Parameter(Mandatory = $true)][scriptblock]$Operation)
+
+    $listenerTask = Get-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath -ErrorAction SilentlyContinue
+    $wasRunning = $listenerTask -and $listenerTask.State -eq "Running"
+
+    if ($wasRunning) {
+        Write-Host "Chat ID 감지를 위해 command listener를 잠시 중지합니다."
+        Stop-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath
+        Start-Sleep -Seconds 3
+    }
+
+    try {
+        & $Operation
+    } finally {
+        if ($wasRunning) {
+            Start-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath
+            Write-Host "Command listener를 다시 시작했습니다."
+        }
+    }
+}
+
 $secureToken = Read-Host "BotFather에서 받은 Telegram bot token" -AsSecureString
 $token = ConvertFrom-CodexSecureStringPlainText -SecureValue $secureToken
 if ([string]::IsNullOrWhiteSpace($token)) {
@@ -23,10 +48,20 @@ Write-Host "Bot token 확인 완료."
 Write-Host "Telegram에서 새 Codex bot에게 /start를 보낸 뒤 여기에서 Enter를 누르세요."
 Read-Host | Out-Null
 
-$updates = Invoke-CodexTelegramApi `
-    -Token $token `
-    -MethodName "getUpdates" `
-    -Payload @{ timeout = 1; allowed_updates = @("message", "my_chat_member") }
+try {
+    $updates = Invoke-WithListenerPausedForTelegramPolling {
+        Invoke-CodexTelegramApi `
+            -Token $token `
+            -MethodName "getUpdates" `
+            -Payload @{ timeout = 1; allowed_updates = @("message", "my_chat_member") }
+    }
+} catch {
+    if (Test-CodexTelegramConflictError -ErrorRecord $_) {
+        throw "Telegram getUpdates conflict가 발생했습니다. 같은 bot token으로 실행 중인 다른 PC 또는 listener를 중지한 뒤 다시 실행하거나 PC마다 별도 bot token을 사용하세요."
+    }
+
+    throw
+}
 $chat = $updates.result |
     Sort-Object update_id -Descending |
     ForEach-Object {
@@ -61,7 +96,8 @@ $lines = @(
     "CODEX_PROCESS_PATH_PATTERN=auto",
     "CODEX_LOG_MAX_BYTES=1048576",
     "CODEX_LOG_KEEP_FILES=5",
-    "CODEX_HEARTBEAT_STALE_SECONDS=120"
+    "CODEX_HEARTBEAT_STALE_SECONDS=120",
+    "CODEX_POLLING_CONFLICT_STALE_SECONDS=3600"
 )
 
 Set-Content -LiteralPath $EnvFile -Value $lines -Encoding UTF8

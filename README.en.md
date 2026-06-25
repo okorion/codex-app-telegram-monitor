@@ -71,7 +71,7 @@ The GUI can:
 - Save `.env` and protect its ACL
 - Run diagnostics
 
-Chat ID detection requires sending `/start` or another message to the bot first. If the command listener is already running with the same bot token, Telegram may return `409 Conflict`; in that case, temporarily stop the listener task or use the console detection flow in `install_all.ps1` or `configure-codex-telegram.ps1`. If you saved `.env` from the GUI first, run:
+Chat ID detection requires sending `/start` or another message to the bot first. The GUI temporarily stops the local command listener while detecting the chat ID and starts it again afterward. If another PC is polling with the same bot token, Telegram may still return `409 Conflict`; in that case, stop the other listener or use one bot token per PC. If you saved `.env` from the GUI first, run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
@@ -220,6 +220,7 @@ CODEX_PROCESS_PATH_PATTERN=auto
 CODEX_LOG_MAX_BYTES=1048576
 CODEX_LOG_KEEP_FILES=5
 CODEX_HEARTBEAT_STALE_SECONDS=120
+CODEX_POLLING_CONFLICT_STALE_SECONDS=3600
 ```
 
 `TELEGRAM_ALLOWED_CHAT_IDS` accepts comma, semicolon, or whitespace separated chat IDs. When it is empty, the listener falls back to `TELEGRAM_PERSONAL_CHAT_ID` and `TELEGRAM_CHAT_ID`.
@@ -238,9 +239,11 @@ When `CODEX_PROCESS_PATH_PATTERN=auto`, the scripts use `*\OpenAI.Codex_*\app\Co
 
 `CODEX_HEARTBEAT_STALE_SECONDS` controls when `/codex_health` reports the listener heartbeat as stale.
 
+`CODEX_POLLING_CONFLICT_STALE_SECONDS` controls how far back `/h`, `diagnose.ps1`, and `health-check.ps1` treat Telegram polling conflict logs as current. The default is 3600 seconds.
+
 ## Multiple PCs
 
-Telegram `getUpdates` long polling is best used with one active PC per bot token. If you install this monitor on multiple PCs, create a separate Telegram bot for each PC, or ensure only one PC uses a given bot token at a time. If two listeners poll with the same token, Telegram can return `409 Conflict`; `/h` and `diagnose.ps1` surface this when it appears in recent listener logs.
+Telegram `getUpdates` long polling is best used with one active PC per bot token. If you install this monitor on multiple PCs, create a separate Telegram bot for each PC, or ensure only one PC uses a given bot token at a time. If two listeners poll with the same token, Telegram can return `409 Conflict`; `/h`, `diagnose.ps1`, and `health-check.ps1` surface this when it appears in listener logs within the configured time window.
 
 Set a distinct `CODEX_DEVICE_NAME` on each PC so Telegram messages clearly show which computer handled the command.
 

@@ -295,10 +295,10 @@ function Test-RecentPollingConflict {
         return $false
     }
 
-    return @(
-        Get-Content -LiteralPath $LogFile -Tail 50 -ErrorAction SilentlyContinue |
-            Where-Object { Test-CodexTelegramConflictText -Text $_ }
-    ).Count -gt 0
+    $recentLines = @(Get-Content -LiteralPath $LogFile -Tail 100 -ErrorAction SilentlyContinue)
+    return Test-CodexRecentTelegramConflict `
+        -Lines $recentLines `
+        -StaleSeconds (Get-CodexPollingConflictStaleSeconds)
 }
 
 function New-HealthMessage {
@@ -351,6 +351,7 @@ function New-HealthMessage {
         "Offset file: $(ConvertTo-StatusIcon -Value $offsetFileExists) $(if ($offsetFileExists) { "있음" } else { "없음" })",
         (ConvertTo-HeartbeatSummary -Heartbeat $heartbeat),
         "Polling conflict: $(ConvertTo-StatusIcon -Value (!$pollingConflict)) $(if ($pollingConflict) { "최근 감지됨" } else { "없음" })",
+        "Conflict 기준: 최근 $([int][math]::Round((Get-CodexPollingConflictStaleSeconds) / 60))분",
         "Log file: $(ConvertTo-StatusIcon -Value $logFileExists) $(if ($logFileExists) { "$logFileSize bytes" } else { "없음" })",
         "",
         "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"

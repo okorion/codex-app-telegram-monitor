@@ -2,6 +2,7 @@
 $script:CodexDefaultProcessPathPattern = "*\OpenAI.Codex_*\app\Codex.exe"
 $script:CodexDefaultMessageTitle = "Codex app monitor test"
 $script:CodexDefaultToolVersion = "0.1.0"
+$script:CodexDefaultPollingConflictStaleSeconds = 3600
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -242,6 +243,58 @@ function Test-CodexTelegramConflictError {
 
     $parts.Add([string]$ErrorRecord) | Out-Null
     return Test-CodexTelegramConflictText -Text ($parts -join "`n")
+}
+
+function Get-CodexPollingConflictStaleSeconds {
+    return Get-CodexIntEnvOrDefault `
+        -Name "CODEX_POLLING_CONFLICT_STALE_SECONDS" `
+        -DefaultValue $script:CodexDefaultPollingConflictStaleSeconds `
+        -MinValue 60
+}
+
+function Get-CodexLogTimestamp {
+    param([AllowNull()][string]$Line)
+
+    if ([string]::IsNullOrWhiteSpace($Line) -or $Line -notmatch '^\[(?<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]') {
+        return $null
+    }
+
+    try {
+        return [datetime]::ParseExact($matches.timestamp, "yyyy-MM-dd HH:mm:ss", [Globalization.CultureInfo]::InvariantCulture)
+    } catch {
+        return $null
+    }
+}
+
+function Test-CodexRecentTelegramConflict {
+    param(
+        [AllowNull()][object[]]$Lines,
+        [int]$StaleSeconds = $script:CodexDefaultPollingConflictStaleSeconds,
+        [datetime]$Now = (Get-Date)
+    )
+
+    if ($null -eq $Lines -or $Lines.Count -eq 0) {
+        return $false
+    }
+
+    foreach ($line in $Lines) {
+        $lineText = [string]$line
+        if (!(Test-CodexTelegramConflictText -Text $lineText)) {
+            continue
+        }
+
+        $timestamp = Get-CodexLogTimestamp -Line $lineText
+        if ($null -eq $timestamp) {
+            continue
+        }
+
+        $ageSeconds = [math]::Max(0, [int](($Now - $timestamp).TotalSeconds))
+        if ($ageSeconds -le $StaleSeconds) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Get-CodexDeviceName {

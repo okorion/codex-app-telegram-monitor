@@ -71,7 +71,7 @@ GUI에서 할 수 있는 일:
 - `.env` 저장 및 ACL 보호
 - 진단 스크립트 실행
 
-주의: chat ID 감지는 bot에게 `/start` 또는 메시지를 보낸 뒤 실행해야 합니다. 이미 command listener가 같은 bot token으로 실행 중이면 Telegram `409 Conflict`가 날 수 있으므로, 그 경우 listener 작업을 잠시 중지하거나 `install_all.ps1` 또는 `configure-codex-telegram.ps1`의 콘솔 감지를 사용하세요. GUI로 `.env`를 먼저 저장했다면 설치는 아래처럼 실행합니다.
+주의: chat ID 감지는 bot에게 `/start` 또는 메시지를 보낸 뒤 실행해야 합니다. GUI는 감지 중 로컬 command listener를 잠시 중지하고 완료 후 다시 시작합니다. 그래도 다른 PC가 같은 bot token으로 polling 중이면 Telegram `409 Conflict`가 날 수 있으므로, 그 경우 다른 PC의 listener를 중지하거나 PC마다 별도 bot token을 사용하세요. GUI로 `.env`를 먼저 저장했다면 설치는 아래처럼 실행합니다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
@@ -222,6 +222,7 @@ CODEX_PROCESS_PATH_PATTERN=auto
 CODEX_LOG_MAX_BYTES=1048576
 CODEX_LOG_KEEP_FILES=5
 CODEX_HEARTBEAT_STALE_SECONDS=120
+CODEX_POLLING_CONFLICT_STALE_SECONDS=3600
 ```
 
 `TELEGRAM_ALLOWED_CHAT_IDS`는 쉼표, 세미콜론, 공백으로 구분된 chat ID 목록을 받습니다. 비어 있으면 `TELEGRAM_PERSONAL_CHAT_ID`와 `TELEGRAM_CHAT_ID`를 사용합니다.
@@ -240,9 +241,11 @@ CODEX_HEARTBEAT_STALE_SECONDS=120
 
 `CODEX_HEARTBEAT_STALE_SECONDS`는 `/codex_health`에서 listener heartbeat를 stale로 판단하는 기준입니다.
 
+`CODEX_POLLING_CONFLICT_STALE_SECONDS`는 `/h`, `diagnose.ps1`, `health-check.ps1`에서 Telegram polling conflict 로그를 최근 문제로 볼 시간 범위입니다. 기본값은 3600초입니다.
+
 ## 여러 PC에서 사용
 
-Telegram `getUpdates` long polling은 하나의 bot token을 하나의 active PC에서 사용하는 방식에 가장 잘 맞습니다. 여러 PC에 설치하려면 PC마다 별도 Telegram 봇을 만들거나, 하나의 bot token을 동시에 사용하는 PC가 하나만 되도록 관리하세요. 같은 token으로 두 listener가 동시에 polling하면 Telegram `409 Conflict`가 발생할 수 있고, `/h`와 `diagnose.ps1`는 최근 listener 로그에서 이 충돌을 감지해 표시합니다.
+Telegram `getUpdates` long polling은 하나의 bot token을 하나의 active PC에서 사용하는 방식에 가장 잘 맞습니다. 여러 PC에 설치하려면 PC마다 별도 Telegram 봇을 만들거나, 하나의 bot token을 동시에 사용하는 PC가 하나만 되도록 관리하세요. 같은 token으로 두 listener가 동시에 polling하면 Telegram `409 Conflict`가 발생할 수 있고, `/h`, `diagnose.ps1`, `health-check.ps1`는 설정된 시간 범위 안의 listener 로그에서 이 충돌을 감지해 표시합니다.
 
 각 PC에 서로 다른 `CODEX_DEVICE_NAME`을 설정하면 Telegram 메시지에서 어떤 컴퓨터가 명령을 처리했는지 쉽게 구분할 수 있습니다.
 
