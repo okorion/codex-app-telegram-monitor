@@ -61,8 +61,8 @@ function Get-ListenerHeartbeatStatus {
         return @{
             Exists = $false
             Timestamp = $null
-            TimestampText = "Missing"
-            AgeText = "unknown"
+            TimestampText = "없음"
+            AgeText = "알 수 없음"
             AgeSeconds = $null
             Fresh = $false
             StaleSeconds = $staleSeconds
@@ -232,7 +232,7 @@ function Get-TaskHealth {
         return @{
             Exists = $false
             UsesEnvFile = $false
-            State = "Missing"
+            State = "없음"
             NextRunTime = $null
             LastRunTime = $null
             LastTaskResult = $null
@@ -268,7 +268,7 @@ function ConvertTo-TaskSummary {
     )
 
     if (!$Task.Exists) {
-        return "$Label`: ⚠️ Missing"
+        return "$Label`: ⚠️ 없음"
     }
 
     $envState = if ($Task.UsesEnvFile) { "env OK" } else { "env mismatch" }
@@ -279,11 +279,11 @@ function ConvertTo-HeartbeatSummary {
     param([Parameter(Mandatory = $true)][hashtable]$Heartbeat)
 
     if (!$Heartbeat.Exists) {
-        return "Listener heartbeat: ⚠️ Missing"
+        return "Listener heartbeat: ⚠️ 없음"
     }
 
     $icon = ConvertTo-StatusIcon -Value $Heartbeat.Fresh
-    $state = if ($Heartbeat.Fresh) { "Fresh" } else { "Stale" }
+    $state = if ($Heartbeat.Fresh) { "정상" } else { "오래됨" }
     return "Listener heartbeat: $icon $state, $($Heartbeat.TimestampText) ($($Heartbeat.AgeText))"
 }
 
@@ -320,21 +320,21 @@ function New-HealthMessage {
     return @(
         "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
-        "<b>Health Check: $(ConvertTo-StatusIcon -Value $overallOk) $(if ($overallOk) { "OK" } else { "WARN" })</b>",
+        "<b>상태 점검: $(ConvertTo-StatusIcon -Value $overallOk) $(if ($overallOk) { "OK" } else { "WARN" })</b>",
         "대상: Codex App",
         "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
-        "Bot token: $(ConvertTo-StatusIcon -Value $tokenPresent) $(if ($tokenPresent) { "Present" } else { "Missing" })",
-        "Bot API: $(ConvertTo-StatusIcon -Value $botReachable) $(if ($botReachable) { "Reachable" } else { "Unavailable" })",
-        "Notification chats: $($allowedChatIds.Count)개",
-        "Command chats: $($commandAllowedChatIds.Count)개",
-        "Start chats: $($startAllowedChatIds.Count)개",
-        "Env ACL: $(ConvertTo-StatusIcon -Value $envProtected) $(if ($envProtected) { "Protected" } else { "Needs protection" })",
+        "Bot token: $(ConvertTo-StatusIcon -Value $tokenPresent) $(if ($tokenPresent) { "있음" } else { "없음" })",
+        "Bot API: $(ConvertTo-StatusIcon -Value $botReachable) $(if ($botReachable) { "연결 가능" } else { "연결 불가" })",
+        "알림 허용 채팅: $($allowedChatIds.Count)개",
+        "명령 허용 채팅: $($commandAllowedChatIds.Count)개",
+        "실행 허용 채팅: $($startAllowedChatIds.Count)개",
+        "Env ACL: $(ConvertTo-StatusIcon -Value $envProtected) $(if ($envProtected) { "보호됨" } else { "보호 필요" })",
         (ConvertTo-TaskSummary -Label "Daily monitor" -Task $monitorTask),
         (ConvertTo-TaskSummary -Label "Command listener" -Task $listenerTask),
         (ConvertTo-TaskSummary -Label "Watchdog" -Task $watchdogTask),
-        "Offset file: $(ConvertTo-StatusIcon -Value $offsetFileExists) $(if ($offsetFileExists) { "Present" } else { "Missing" })",
+        "Offset file: $(ConvertTo-StatusIcon -Value $offsetFileExists) $(if ($offsetFileExists) { "있음" } else { "없음" })",
         (ConvertTo-HeartbeatSummary -Heartbeat $heartbeat),
-        "Log file: $(ConvertTo-StatusIcon -Value $logFileExists) $(if ($logFileExists) { "$logFileSize bytes" } else { "Missing" })",
+        "Log file: $(ConvertTo-StatusIcon -Value $logFileExists) $(if ($logFileExists) { "$logFileSize bytes" } else { "없음" })",
         "",
         "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
     ) -join "`n"
@@ -368,7 +368,7 @@ function New-VersionMessage {
     $lines = @(
         "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
-        "<b>Codex Version</b>",
+        "<b>Codex 버전</b>",
         "대상: Codex App",
         "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
         "Tool version: $(ConvertTo-CodexTelegramHtml $toolVersion)",
@@ -436,7 +436,7 @@ function New-LogsMessage {
         return @(
             "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
             "",
-            "<b>Listener Logs</b>",
+            "<b>Listener 로그</b>",
             "대상: Codex App",
             "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
             "로그 파일이 없습니다.",
@@ -453,10 +453,10 @@ function New-LogsMessage {
     return @(
         "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
-        "<b>Listener Logs</b>",
+        "<b>Listener 로그</b>",
         "대상: Codex App",
         "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
-        "Lines: $Count",
+        "줄 수: $Count",
         "",
         "<pre>$(ConvertTo-CodexTelegramHtml $logText)</pre>",
         "",
@@ -471,7 +471,7 @@ function New-PingMessage {
     return @(
         "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
-        "<b>Listener Ping: ✅ OK</b>",
+        "<b>Listener 응답: ✅ OK</b>",
         "대상: Codex App",
         "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
         "마지막 polling: $($heartbeat.TimestampText) ($($heartbeat.AgeText))",
@@ -610,7 +610,7 @@ function Read-Offset {
     try {
         return [int64]$value
     } catch {
-        Write-ListenerLog "Invalid Telegram offset file. Reinitializing offset."
+        Write-ListenerLog "Telegram offset 파일이 올바르지 않아 다시 초기화합니다."
         return $null
     }
 }
@@ -674,7 +674,7 @@ function Handle-TelegramUpdate {
 
     $chatId = [string]$Update.message.chat.id
     if (!(Test-AllowedChatId -ChatId $chatId)) {
-        Write-ListenerLog "Ignored message from unauthorized chat."
+        Write-ListenerLog "허용되지 않은 채팅의 메시지를 무시했습니다."
         return
     }
 
@@ -685,7 +685,7 @@ function Handle-TelegramUpdate {
         }
         "start" {
             if (!(Test-StartAllowedChatId -ChatId $chatId)) {
-                Write-ListenerLog "Denied Codex start request from command-authorized chat without start permission."
+                Write-ListenerLog "명령은 허용되었지만 실행 권한이 없는 채팅의 Codex start 요청을 거부했습니다."
                 Send-TelegramMessage -ChatId $chatId -Message (New-StartDeniedMessage)
                 return
             }
@@ -734,7 +734,7 @@ if ($null -eq $offset) {
     $offset = Read-Offset
 }
 
-Write-ListenerLog "Command listener started."
+Write-ListenerLog "Command listener 시작됨."
 Save-ListenerHeartbeat
 
 while ($true) {
@@ -744,14 +744,14 @@ while ($true) {
             try {
                 Handle-TelegramUpdate -Update $update
             } catch {
-                Write-ListenerLog "Update handling failed: $($_.Exception.Message)"
+                Write-ListenerLog "Update 처리 실패: $($_.Exception.Message)"
             } finally {
                 $offset = [int64]$update.update_id + 1
                 Save-Offset -Offset $offset
             }
         }
     } catch {
-        Write-ListenerLog "Polling failed: $($_.Exception.Message)"
+        Write-ListenerLog "Polling 실패: $($_.Exception.Message)"
         if ($Once) {
             throw
         }

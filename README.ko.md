@@ -1,6 +1,6 @@
 # Codex App Telegram Monitor
 
-[English](README.md) | [한국어](README.ko.md)
+한국어 | [English](README.en.md)
 
 전용 Telegram 봇으로 Windows용 Codex 데스크톱 앱을 관리하는 PowerShell 스크립트 모음입니다.
 
@@ -376,7 +376,7 @@ issue를 만들기 전에 아래 명령을 실행하세요.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
 ```
 
-그리고 redaction된 출력을 issue에 포함하세요. 자세한 내용은 [SUPPORT.ko.md](SUPPORT.ko.md)를 확인하세요.
+그리고 redaction된 출력을 issue에 포함하세요. 자세한 내용은 [SUPPORT.md](SUPPORT.md)를 확인하세요.
 
 ## 검증
 

@@ -7,4 +7,4 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
 
 Protect-CodexEnvFile -Path $EnvFile
-"Protected env file ACL: $EnvFile"
+"환경 파일 ACL 보호 완료: $EnvFile"

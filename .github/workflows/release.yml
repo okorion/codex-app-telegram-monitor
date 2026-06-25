@@ -1,4 +1,4 @@
-name: Release
+name: 릴리스
 
 on:
   push:
@@ -12,10 +12,10 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - name: Checkout
+      - name: 소스 체크아웃
         uses: actions/checkout@v4
 
-      - name: Validate version tag
+      - name: version tag 검증
         shell: pwsh
         run: |
           $version = (Get-Content -LiteralPath .\VERSION -Raw).Trim()
@@ -25,7 +25,7 @@ jobs:
           }
           "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Create release archive
+      - name: release archive 생성
         shell: pwsh
         run: |
           $archive = "codex-app-telegram-monitor-$env:PACKAGE_VERSION.zip"
@@ -34,7 +34,7 @@ jobs:
             throw "Release archive was not created."
           }
 
-      - name: Publish GitHub Release
+      - name: GitHub Release 게시
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh

@@ -6,7 +6,7 @@ $scriptPath = Join-Path $PSScriptRoot "ensure-codex-app-with-telegram.ps1"
 $envFile = Join-Path $PSScriptRoot ".env"
 
 if (!(Test-Path -LiteralPath $envFile)) {
-    throw "Codex Telegram .env is missing. Run configure-codex-telegram.ps1 first."
+    throw "Codex Telegram .env가 없습니다. configure-codex-telegram.ps1을 먼저 실행하세요."
 }
 
 $action = New-ScheduledTaskAction `
@@ -24,7 +24,7 @@ $principal = New-ScheduledTaskPrincipal `
     -UserId "$env:USERDOMAIN\$env:USERNAME" `
     -LogonType Interactive `
     -RunLevel Limited
-$description = "At 09:00 daily, start the Codex app if needed and send the check result to the dedicated Codex Telegram bot."
+$description = "매일 09:00에 Codex App 상태를 확인하고 필요하면 실행한 뒤 전용 Telegram bot으로 결과를 보냅니다."
 
 Register-ScheduledTask `
     -TaskName $taskName `

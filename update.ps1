@@ -21,21 +21,21 @@ function Invoke-UpdateStep {
 }
 
 if (!$SkipGitPull) {
-    Invoke-UpdateStep -Name "Pull latest repository changes" -ScriptBlock {
+    Invoke-UpdateStep -Name "최신 repository 변경 가져오기" -ScriptBlock {
         $git = Get-Command git.exe -ErrorAction SilentlyContinue
         if (!$git) {
-            throw "git.exe is not available. Re-run with -SkipGitPull after updating the files manually."
+            throw "git.exe를 찾을 수 없습니다. 파일을 수동으로 업데이트한 뒤 -SkipGitPull로 다시 실행하세요."
         }
 
         git -C $PSScriptRoot pull --ff-only
         if ($LASTEXITCODE -ne 0) {
-            throw "git pull --ff-only failed."
+            throw "git pull --ff-only에 실패했습니다."
         }
     }
 }
 
 if (!$SkipInstall) {
-    Invoke-UpdateStep -Name "Refresh scheduled tasks and local protection" -ScriptBlock {
+    Invoke-UpdateStep -Name "예약 작업과 로컬 보호 설정 갱신" -ScriptBlock {
         powershell.exe `
             -NoProfile `
             -ExecutionPolicy Bypass `
@@ -46,10 +46,10 @@ if (!$SkipInstall) {
 }
 
 if (!$SkipRestartListener) {
-    Invoke-UpdateStep -Name "Restart command listener task" -ScriptBlock {
+    Invoke-UpdateStep -Name "command listener 작업 재시작" -ScriptBlock {
         $task = Get-ScheduledTask -TaskName $listenerTaskName -TaskPath $taskPath -ErrorAction SilentlyContinue
         if (!$task) {
-            Write-Host "Command listener task is not installed. Skipping restart."
+            Write-Host "command listener 작업이 설치되어 있지 않습니다. 재시작을 건너뜁니다."
             return
         }
 
@@ -58,7 +58,7 @@ if (!$SkipRestartListener) {
     }
 }
 
-Invoke-UpdateStep -Name "Run diagnostics" -ScriptBlock {
+Invoke-UpdateStep -Name "진단 실행" -ScriptBlock {
     powershell.exe `
         -NoProfile `
         -ExecutionPolicy Bypass `
@@ -66,5 +66,5 @@ Invoke-UpdateStep -Name "Run diagnostics" -ScriptBlock {
 }
 
 Write-Host ""
-Write-Host "Update complete."
-Write-Host "Recommended Telegram checks: send /p, then /s, then /o to the Codex bot."
+Write-Host "업데이트가 완료되었습니다."
+Write-Host "권장 Telegram 확인: Codex bot에 /p, /s, /o를 순서대로 보내세요."

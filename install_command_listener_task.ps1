@@ -13,7 +13,7 @@ $watchdogScriptPath = Join-Path $PSScriptRoot "ensure_command_listener_running.p
 $envFile = Join-Path $PSScriptRoot ".env"
 
 if (!(Test-Path -LiteralPath $envFile)) {
-    throw "Codex Telegram .env is missing. Run configure-codex-telegram.ps1 first."
+    throw "Codex Telegram .env가 없습니다. configure-codex-telegram.ps1을 먼저 실행하세요."
 }
 
 if (!$SkipEnvFileAcl) {
@@ -57,7 +57,7 @@ $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -RestartCount 3 `
     -RestartInterval (New-TimeSpan -Minutes 1)
-$description = "Listen for authorized Telegram commands and start the Codex app on this PC when requested."
+$description = "허용된 Telegram 명령을 수신하고 요청 시 이 PC에서 Codex App을 실행합니다."
 
 Register-ScheduledTask `
     -TaskName $taskName `
@@ -84,7 +84,7 @@ $watchdogSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable
-$watchdogDescription = "Every 5 minutes, start the Codex Telegram command listener if it is not running."
+$watchdogDescription = "5분마다 Codex Telegram command listener가 실행 중인지 확인하고 필요하면 시작합니다."
 
 Register-ScheduledTask `
     -TaskName $watchdogTaskName `

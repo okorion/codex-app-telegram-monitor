@@ -51,7 +51,7 @@ function Add-Field {
 }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Codex App Telegram Monitor Settings"
+$form.Text = "Codex App Telegram Monitor 설정"
 $form.StartPosition = "CenterScreen"
 $form.Width = 640
 $form.Height = 430
@@ -59,30 +59,30 @@ $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 
 $botToken = Add-Field -Form $form -Label "Telegram bot token" -Top 20 -Value (Get-ExistingValue -Key "TELEGRAM_BOT_TOKEN") -Password
-$chatId = Add-Field -Form $form -Label "Notification chat ID" -Top 58 -Value (Get-ExistingValue -Key "TELEGRAM_CHAT_ID")
-$personalChatId = Add-Field -Form $form -Label "Personal chat ID" -Top 96 -Value (Get-ExistingValue -Key "TELEGRAM_PERSONAL_CHAT_ID")
-$allowedChats = Add-Field -Form $form -Label "Allowed chats" -Top 134 -Value (Get-ExistingValue -Key "TELEGRAM_ALLOWED_CHAT_IDS")
-$commandChats = Add-Field -Form $form -Label "Command chats" -Top 172 -Value (Get-ExistingValue -Key "TELEGRAM_COMMAND_ALLOWED_CHAT_IDS")
-$startChats = Add-Field -Form $form -Label "Start chats" -Top 210 -Value (Get-ExistingValue -Key "TELEGRAM_START_ALLOWED_CHAT_IDS")
-$deviceName = Add-Field -Form $form -Label "Device name" -Top 248 -Value (Get-ExistingValue -Key "CODEX_DEVICE_NAME" -Default "auto")
-$title = Add-Field -Form $form -Label "Message title" -Top 286 -Value (Get-ExistingValue -Key "CODEX_MONITOR_TITLE" -Default "Codex app monitor test")
+$chatId = Add-Field -Form $form -Label "알림 chat ID" -Top 58 -Value (Get-ExistingValue -Key "TELEGRAM_CHAT_ID")
+$personalChatId = Add-Field -Form $form -Label "개인 chat ID" -Top 96 -Value (Get-ExistingValue -Key "TELEGRAM_PERSONAL_CHAT_ID")
+$allowedChats = Add-Field -Form $form -Label "알림 허용 채팅" -Top 134 -Value (Get-ExistingValue -Key "TELEGRAM_ALLOWED_CHAT_IDS")
+$commandChats = Add-Field -Form $form -Label "명령 허용 채팅" -Top 172 -Value (Get-ExistingValue -Key "TELEGRAM_COMMAND_ALLOWED_CHAT_IDS")
+$startChats = Add-Field -Form $form -Label "실행 허용 채팅" -Top 210 -Value (Get-ExistingValue -Key "TELEGRAM_START_ALLOWED_CHAT_IDS")
+$deviceName = Add-Field -Form $form -Label "PC 표시 이름" -Top 248 -Value (Get-ExistingValue -Key "CODEX_DEVICE_NAME" -Default "auto")
+$title = Add-Field -Form $form -Label "메시지 제목" -Top 286 -Value (Get-ExistingValue -Key "CODEX_MONITOR_TITLE" -Default "Codex app monitor test")
 
 $saveButton = New-Object System.Windows.Forms.Button
-$saveButton.Text = "Save .env"
+$saveButton.Text = ".env 저장"
 $saveButton.Left = 210
 $saveButton.Top = 330
 $saveButton.Width = 110
 $form.Controls.Add($saveButton)
 
 $diagnoseButton = New-Object System.Windows.Forms.Button
-$diagnoseButton.Text = "Run Diagnose"
+$diagnoseButton.Text = "진단 실행"
 $diagnoseButton.Left = 332
 $diagnoseButton.Top = 330
 $diagnoseButton.Width = 120
 $form.Controls.Add($diagnoseButton)
 
 $closeButton = New-Object System.Windows.Forms.Button
-$closeButton.Text = "Close"
+$closeButton.Text = "닫기"
 $closeButton.Left = 464
 $closeButton.Top = 330
 $closeButton.Width = 110
@@ -91,10 +91,10 @@ $form.Controls.Add($closeButton)
 $saveButton.Add_Click({
     try {
         if ([string]::IsNullOrWhiteSpace($botToken.Text)) {
-            throw "Telegram bot token is required."
+            throw "Telegram bot token은 필수입니다."
         }
         if ([string]::IsNullOrWhiteSpace($chatId.Text) -and [string]::IsNullOrWhiteSpace($personalChatId.Text)) {
-            throw "At least one chat ID is required."
+            throw "chat ID가 하나 이상 필요합니다."
         }
 
         $resolvedPersonalChatId = if ([string]::IsNullOrWhiteSpace($personalChatId.Text)) { $chatId.Text.Trim() } else { $personalChatId.Text.Trim() }
@@ -125,9 +125,9 @@ $saveButton.Add_Click({
         Set-Content -LiteralPath $EnvFile -Encoding UTF8 -Value $lines
         Protect-CodexEnvFile -Path $EnvFile
 
-        [System.Windows.Forms.MessageBox]::Show("Saved .env and protected its ACL.", "Codex App Telegram Monitor") | Out-Null
+        [System.Windows.Forms.MessageBox]::Show(".env를 저장하고 ACL을 보호했습니다.", "Codex App Telegram Monitor") | Out-Null
     } catch {
-        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "Save failed") | Out-Null
+        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "저장 실패") | Out-Null
     }
 })
 
@@ -140,7 +140,7 @@ $diagnoseButton.Add_Click({
             "-File", (Join-Path $PSScriptRoot "diagnose.ps1")
         )
     } catch {
-        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "Diagnose failed") | Out-Null
+        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "진단 실행 실패") | Out-Null
     }
 })
 

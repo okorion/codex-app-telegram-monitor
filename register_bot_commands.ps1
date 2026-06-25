@@ -16,4 +16,4 @@ if ($DryRun) {
 }
 
 Set-CodexTelegramBotCommands
-"Telegram command menu registered."
+"Telegram 명령 메뉴 등록 완료."

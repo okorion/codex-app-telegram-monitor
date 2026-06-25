@@ -37,27 +37,27 @@ function Get-TaskDiagnostic {
 
     $task = Get-ScheduledTask -TaskName $TaskName -TaskPath $taskPath -ErrorAction SilentlyContinue
     if (!$task) {
-        return New-DiagnosticRow -Name $TaskName -Status "FAIL" -Detail "Scheduled task is missing." -Fix "Run install_all.ps1 or the matching install script."
+        return New-DiagnosticRow -Name $TaskName -Status "FAIL" -Detail "예약 작업이 없습니다." -Fix "install_all.ps1 또는 해당 install 스크립트를 실행하세요."
     }
 
     $info = Get-ScheduledTaskInfo -TaskName $TaskName -TaskPath $taskPath
     $usesEnv = @(@($task.Actions) | Where-Object { $_.Arguments -like "*$EnvFile*" }).Count -gt 0
     $status = if ($usesEnv) { "OK" } else { "WARN" }
     $detail = "State=$($task.State); NextRun=$($info.NextRunTime); LastRun=$($info.LastRunTime); LastResult=$($info.LastTaskResult); Env=$usesEnv"
-    $fix = if ($usesEnv) { "" } else { "Reinstall the task so it points to this repo .env file." }
+    $fix = if ($usesEnv) { "" } else { "예약 작업이 이 repo의 .env 파일을 가리키도록 다시 설치하세요." }
     return New-DiagnosticRow -Name $TaskName -Status $status -Detail $detail -Fix $fix
 }
 
 function Get-HeartbeatDiagnostic {
     $heartbeatAt = Read-CodexListenerHeartbeat -Path $heartbeatFile
     if ($null -eq $heartbeatAt) {
-        return New-DiagnosticRow -Name "Listener heartbeat" -Status "WARN" -Detail "Heartbeat file is missing or unreadable." -Fix "Start or reinstall the command listener task."
+        return New-DiagnosticRow -Name "Listener heartbeat" -Status "WARN" -Detail "Heartbeat 파일이 없거나 읽을 수 없습니다." -Fix "command listener 작업을 시작하거나 다시 설치하세요."
     }
 
     $ageSeconds = [math]::Max(0, [int]((Get-Date) - $heartbeatAt).TotalSeconds)
     $staleSeconds = Get-CodexIntEnvOrDefault -Name "CODEX_HEARTBEAT_STALE_SECONDS" -DefaultValue 120 -MinValue 30
     $status = if ($ageSeconds -le $staleSeconds) { "OK" } else { "WARN" }
-    $fix = if ($status -eq "OK") { "" } else { "Run ensure_command_listener_running.ps1 or reinstall the command listener." }
+    $fix = if ($status -eq "OK") { "" } else { "ensure_command_listener_running.ps1을 실행하거나 command listener를 다시 설치하세요." }
     return New-DiagnosticRow -Name "Listener heartbeat" -Status $status -Detail "Last=$($heartbeatAt.ToString("yyyy-MM-dd HH:mm:ss")); Age=${ageSeconds}s; StaleAfter=${staleSeconds}s" -Fix $fix
 }
 
@@ -176,22 +176,22 @@ $lastLogLines = if ($logExists) { @(Get-Content -LiteralPath $logFile -Tail 10 |
 
 $rows = @()
 $rows += New-DiagnosticRow -Name "Tool version" -Status "OK" -Detail $toolVersion
-$rows += New-DiagnosticRow -Name ".env" -Status $(if ($envExists) { "OK" } else { "FAIL" }) -Detail $(if ($envExists) { "Found" } else { "Missing" }) -Fix $(if ($envExists) { "" } else { "Run configure-codex-telegram.ps1." })
-$rows += New-DiagnosticRow -Name ".env ACL" -Status $(if ($envProtected) { "OK" } else { "WARN" }) -Detail $(if ($envProtected) { "Protected" } else { "Not protected" }) -Fix $(if ($envProtected) { "" } else { "Run protect_env_file.ps1." })
-$rows += New-DiagnosticRow -Name "Telegram token" -Status $(if ($tokenPresent) { "OK" } else { "FAIL" }) -Detail $(if ($tokenPresent) { "Present" } else { "Missing" }) -Fix $(if ($tokenPresent) { "" } else { "Run configure-codex-telegram.ps1." })
-$rows += New-DiagnosticRow -Name "Telegram chat" -Status $(if ($chatPresent) { "OK" } else { "FAIL" }) -Detail $(if ($chatPresent) { "Configured" } else { "Missing" }) -Fix $(if ($chatPresent) { "" } else { "Send /start to the bot and rerun configure-codex-telegram.ps1." })
-$rows += New-DiagnosticRow -Name "Telegram API" -Status $(if ($botReachable) { "OK" } else { "FAIL" }) -Detail $(if ($botReachable) { "Reachable" } else { "Unavailable" }) -Fix $(if ($botReachable) { "" } else { "Check bot token and network access." })
+$rows += New-DiagnosticRow -Name ".env" -Status $(if ($envExists) { "OK" } else { "FAIL" }) -Detail $(if ($envExists) { "있음" } else { "없음" }) -Fix $(if ($envExists) { "" } else { "configure-codex-telegram.ps1을 실행하세요." })
+$rows += New-DiagnosticRow -Name ".env ACL" -Status $(if ($envProtected) { "OK" } else { "WARN" }) -Detail $(if ($envProtected) { "보호됨" } else { "보호되지 않음" }) -Fix $(if ($envProtected) { "" } else { "protect_env_file.ps1을 실행하세요." })
+$rows += New-DiagnosticRow -Name "Telegram token" -Status $(if ($tokenPresent) { "OK" } else { "FAIL" }) -Detail $(if ($tokenPresent) { "있음" } else { "없음" }) -Fix $(if ($tokenPresent) { "" } else { "configure-codex-telegram.ps1을 실행하세요." })
+$rows += New-DiagnosticRow -Name "Telegram chat" -Status $(if ($chatPresent) { "OK" } else { "FAIL" }) -Detail $(if ($chatPresent) { "설정됨" } else { "없음" }) -Fix $(if ($chatPresent) { "" } else { "bot에게 /start를 보낸 뒤 configure-codex-telegram.ps1을 다시 실행하세요." })
+$rows += New-DiagnosticRow -Name "Telegram API" -Status $(if ($botReachable) { "OK" } else { "FAIL" }) -Detail $(if ($botReachable) { "연결 가능" } else { "연결 불가" }) -Fix $(if ($botReachable) { "" } else { "bot token과 네트워크 연결을 확인하세요." })
 $allowedChatStatus = if ($allowedChatIds.Count -gt 0 -and $commandAllowedChatIds.Count -gt 0 -and $startAllowedChatIds.Count -gt 0) { "OK" } else { "WARN" }
-$allowedChatFix = if ($allowedChatStatus -eq "OK") { "" } else { "Set TELEGRAM_ALLOWED_CHAT_IDS, TELEGRAM_COMMAND_ALLOWED_CHAT_IDS, and TELEGRAM_START_ALLOWED_CHAT_IDS when using groups or multiple chats." }
-$rows += New-DiagnosticRow -Name "Allowed chats" -Status $allowedChatStatus -Detail "Notification=$($allowedChatIds.Count); Command=$($commandAllowedChatIds.Count); Start=$($startAllowedChatIds.Count)" -Fix $allowedChatFix
+$allowedChatFix = if ($allowedChatStatus -eq "OK") { "" } else { "그룹 또는 여러 채팅을 사용할 때 TELEGRAM_ALLOWED_CHAT_IDS, TELEGRAM_COMMAND_ALLOWED_CHAT_IDS, TELEGRAM_START_ALLOWED_CHAT_IDS를 설정하세요." }
+$rows += New-DiagnosticRow -Name "허용 채팅" -Status $allowedChatStatus -Detail "알림=$($allowedChatIds.Count); 명령=$($commandAllowedChatIds.Count); 실행=$($startAllowedChatIds.Count)" -Fix $allowedChatFix
 $rows += Get-TaskDiagnostic -TaskName $monitorTaskName
 $rows += Get-TaskDiagnostic -TaskName $listenerTaskName
 $rows += Get-TaskDiagnostic -TaskName $watchdogTaskName
 $rows += Get-HeartbeatDiagnostic
-$rows += New-DiagnosticRow -Name "Codex StartApps" -Status $(if ($detection.StartAppCount -gt 0) { "OK" } else { "WARN" }) -Detail "Candidates=$($detection.StartAppCount)" -Fix $(if ($detection.StartAppCount -gt 0) { "" } else { "Set CODEX_APP_USER_MODEL_ID manually if Codex cannot be launched." })
-$rows += New-DiagnosticRow -Name "Codex Appx package" -Status $(if ($detection.AppxPackageCount -gt 0) { "OK" } else { "WARN" }) -Detail "Candidates=$($detection.AppxPackageCount)"
-$rows += New-DiagnosticRow -Name "Codex process" -Status $(if ($matchingProcessCount -gt 0) { "OK" } else { "WARN" }) -Detail "Matching=$matchingProcessCount; AnyCodex=$($detection.CodexProcessCount); Pattern=$($settings.ProcessPathPattern)" -Fix $(if ($matchingProcessCount -gt 0) { "" } else { "Start Codex or set CODEX_PROCESS_PATH_PATTERN manually." })
-$rows += New-DiagnosticRow -Name "Listener log" -Status $(if ($logExists) { "OK" } else { "WARN" }) -Detail $(if ($logExists) { "$logSize bytes" } else { "Missing" })
+$rows += New-DiagnosticRow -Name "Codex StartApps" -Status $(if ($detection.StartAppCount -gt 0) { "OK" } else { "WARN" }) -Detail "후보=$($detection.StartAppCount)" -Fix $(if ($detection.StartAppCount -gt 0) { "" } else { "Codex 실행이 안 되면 CODEX_APP_USER_MODEL_ID를 수동 설정하세요." })
+$rows += New-DiagnosticRow -Name "Codex Appx package" -Status $(if ($detection.AppxPackageCount -gt 0) { "OK" } else { "WARN" }) -Detail "후보=$($detection.AppxPackageCount)"
+$rows += New-DiagnosticRow -Name "Codex process" -Status $(if ($matchingProcessCount -gt 0) { "OK" } else { "WARN" }) -Detail "일치=$matchingProcessCount; 전체Codex=$($detection.CodexProcessCount); 패턴=$($settings.ProcessPathPattern)" -Fix $(if ($matchingProcessCount -gt 0) { "" } else { "Codex를 시작하거나 CODEX_PROCESS_PATH_PATTERN을 수동 설정하세요." })
+$rows += New-DiagnosticRow -Name "Listener log" -Status $(if ($logExists) { "OK" } else { "WARN" }) -Detail $(if ($logExists) { "$logSize bytes" } else { "없음" })
 
 $failed = @($rows | Where-Object { $_.Status -eq "FAIL" }).Count
 $warned = @($rows | Where-Object { $_.Status -eq "WARN" }).Count
@@ -243,20 +243,20 @@ if ($Json) {
 }
 
 $output = @(
-    "Codex App Telegram Monitor diagnostics",
-    "Generated at: $generatedAt",
+    "Codex App Telegram Monitor 진단",
+    "생성 시각: $generatedAt",
     "Tool version: $toolVersion",
-    "Overall: $overall",
+    "전체 결과: $overall",
     ""
 )
 $output += Format-DiagnosticRows -Rows $rows
 
 if ($SupportBundle) {
     $output += ""
-    $output += "Environment summary (redacted):"
+    $output += "환경 요약 (redacted):"
     $output += Get-RedactedEnvSummary -EnvValues $envValues
     $output += ""
-    $output += "Codex detection:"
+    $output += "Codex 감지:"
     $output += "StartApps:"
     $output += @($detection.StartApps | ForEach-Object { "  Name=$($_.Name); AppID=$($_.AppID)" })
     $output += "Appx packages:"
@@ -264,7 +264,7 @@ if ($SupportBundle) {
     $output += "Processes:"
     $output += @($detection.Processes | ForEach-Object { "  Id=$($_.Id); Path=$(ConvertTo-CodexRedactedText -Text $_.Path)" })
     $output += ""
-    $output += "Recent listener logs (redacted):"
+    $output += "최근 listener 로그 (redacted):"
     $output += $lastLogLines
     $output += ""
     $output += "System:"

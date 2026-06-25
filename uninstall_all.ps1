@@ -21,28 +21,28 @@ function Remove-RepoLocalPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if (!(Test-Path -LiteralPath $Path)) {
-        Write-Host "Missing, skipped: $Path"
+        Write-Host "없어서 건너뜀: $Path"
         return
     }
 
     $root = (Resolve-Path -LiteralPath $PSScriptRoot).Path
     $target = (Resolve-Path -LiteralPath $Path).Path
     if (!$target.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to remove path outside repository: $target"
+        throw "repository 밖의 경로는 삭제하지 않습니다: $target"
     }
 
     Remove-Item -LiteralPath $target -Recurse -Force
-    Write-Host "Removed: $target"
+    Write-Host "삭제됨: $target"
 }
 
-Invoke-UninstallStep -Name "Remove daily monitor task" -ScriptBlock {
+Invoke-UninstallStep -Name "daily monitor 작업 제거" -ScriptBlock {
     powershell.exe `
         -NoProfile `
         -ExecutionPolicy Bypass `
         -File (Join-Path $PSScriptRoot "uninstall_task.ps1")
 }
 
-Invoke-UninstallStep -Name "Remove command listener and watchdog tasks" -ScriptBlock {
+Invoke-UninstallStep -Name "command listener 및 watchdog 작업 제거" -ScriptBlock {
     powershell.exe `
         -NoProfile `
         -ExecutionPolicy Bypass `
@@ -50,29 +50,29 @@ Invoke-UninstallStep -Name "Remove command listener and watchdog tasks" -ScriptB
 }
 
 if ($RemoveEnv) {
-    Invoke-UninstallStep -Name "Remove local .env" -ScriptBlock {
+    Invoke-UninstallStep -Name "로컬 .env 제거" -ScriptBlock {
         Remove-RepoLocalPath -Path (Join-Path $PSScriptRoot ".env")
     }
 } else {
     Write-Host ""
-    Write-Host "[KEEP] .env retained. Pass -RemoveEnv to delete it."
+    Write-Host "[유지] .env를 보존했습니다. 삭제하려면 -RemoveEnv를 지정하세요."
 }
 
 if ($RemoveLogs) {
-    Invoke-UninstallStep -Name "Remove logs" -ScriptBlock {
+    Invoke-UninstallStep -Name "logs 제거" -ScriptBlock {
         Remove-RepoLocalPath -Path (Join-Path $PSScriptRoot "logs")
     }
 } else {
-    Write-Host "[KEEP] logs retained. Pass -RemoveLogs to delete them."
+    Write-Host "[유지] logs를 보존했습니다. 삭제하려면 -RemoveLogs를 지정하세요."
 }
 
 if ($RemoveState) {
-    Invoke-UninstallStep -Name "Remove state" -ScriptBlock {
+    Invoke-UninstallStep -Name "state 제거" -ScriptBlock {
         Remove-RepoLocalPath -Path (Join-Path $PSScriptRoot "state")
     }
 } else {
-    Write-Host "[KEEP] state retained. Pass -RemoveState to delete it."
+    Write-Host "[유지] state를 보존했습니다. 삭제하려면 -RemoveState를 지정하세요."
 }
 
 Write-Host ""
-Write-Host "Uninstall complete."
+Write-Host "제거가 완료되었습니다."

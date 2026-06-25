@@ -8,19 +8,19 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
 
-$secureToken = Read-Host "Telegram bot token from BotFather" -AsSecureString
+$secureToken = Read-Host "BotFather에서 받은 Telegram bot token" -AsSecureString
 $token = ConvertFrom-CodexSecureStringPlainText -SecureValue $secureToken
 if ([string]::IsNullOrWhiteSpace($token)) {
-    throw "Bot token is required."
+    throw "Bot token은 필수입니다."
 }
 
 $me = Invoke-CodexTelegramApi -Token $token -MethodName "getMe"
 if (!$me.ok) {
-    throw "Telegram getMe failed."
+    throw "Telegram getMe 호출에 실패했습니다."
 }
 
-Write-Host "Bot token verified."
-Write-Host "Send /start to the new Codex bot in Telegram, then press Enter here."
+Write-Host "Bot token 확인 완료."
+Write-Host "Telegram에서 새 Codex bot에게 /start를 보낸 뒤 여기에서 Enter를 누르세요."
 Read-Host | Out-Null
 
 $updates = Invoke-CodexTelegramApi `
@@ -39,7 +39,7 @@ $chat = $updates.result |
     Select-Object -First 1
 
 if ($null -eq $chat) {
-    throw "No Telegram chat was detected. Send /start to the bot and run this script again."
+    throw "Telegram 채팅을 감지하지 못했습니다. bot에게 /start를 보낸 뒤 이 스크립트를 다시 실행하세요."
 }
 
 $envDir = Split-Path -Parent $EnvFile
@@ -68,14 +68,14 @@ Set-Content -LiteralPath $EnvFile -Value $lines -Encoding UTF8
 
 if (!$SkipEnvFileAcl) {
     Protect-CodexEnvFile -Path $EnvFile
-    Write-Host "Env file ACL protected."
+    Write-Host "환경 파일 ACL 보호 완료."
 }
 
 if (!$SkipBotCommandMenu) {
     Set-CodexTelegramBotCommands -Token $token
-    Write-Host "Telegram command menu registered."
+    Write-Host "Telegram 명령 메뉴 등록 완료."
 }
 
-Write-Host "Codex Telegram env configured."
-Write-Host "Saved: $EnvFile"
-Write-Host "Chat ID was detected and saved."
+Write-Host "Codex Telegram 환경 설정 완료."
+Write-Host "저장 위치: $EnvFile"
+Write-Host "Chat ID를 감지해 저장했습니다."

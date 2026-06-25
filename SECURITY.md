@@ -1,35 +1,37 @@
-# Security
+# 보안
 
-Codex App Telegram Monitor controls a local desktop app through a Telegram bot. Treat the bot token and chat IDs as sensitive.
+[English](SECURITY.en.md)
 
-## Threat Model
+Codex App Telegram Monitor는 Telegram 봇을 통해 로컬 데스크톱 앱을 제어합니다. Bot token과 chat ID는 민감정보로 취급하세요.
 
-- Anyone with the bot token can call Telegram Bot API methods as that bot.
-- Anyone in an allowed command chat can request Codex App actions supported by this tool.
-- Telegram long polling does not expose a local HTTP server, but the local PC still needs outbound network access to Telegram.
-- Group chats increase the number of people who can see bot messages and potentially send commands.
-- A chat that can run status commands should not automatically be trusted to start local desktop apps unless that is intentional.
+## 위협 모델
 
-## Recommended Defaults
+- bot token을 가진 사람은 해당 봇으로 Telegram Bot API를 호출할 수 있습니다.
+- 허용된 명령 채팅에 있는 사람은 이 도구가 지원하는 Codex App 동작을 요청할 수 있습니다.
+- Telegram long polling은 로컬 HTTP 서버를 외부에 노출하지 않지만, PC에서 Telegram으로 나가는 네트워크 접근은 필요합니다.
+- 그룹 채팅은 봇 메시지를 볼 수 있거나 명령을 보낼 수 있는 사람의 수를 늘립니다.
+- 상태 확인 명령을 실행할 수 있는 채팅이 곧바로 로컬 데스크톱 앱 실행까지 허용받아야 하는 것은 아닙니다.
 
-- Use a dedicated bot for this automation.
-- Prefer one bot token per active PC.
-- Keep command access in a personal chat unless group control is intentionally needed.
-- Set `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS` explicitly.
-- Set `TELEGRAM_START_ALLOWED_CHAT_IDS` to the smallest chat list that should be allowed to start Codex App.
-- Keep `.env` ignored by Git and protected with `protect_env_file.ps1`.
-- Share only `diagnose.ps1 -SupportBundle` output when asking for support.
+## 권장 기본값
 
-## If A Token Is Exposed
+- 이 자동화에는 전용 Telegram 봇을 사용하세요.
+- active PC마다 별도 bot token을 사용하는 것을 권장합니다.
+- 그룹 제어가 꼭 필요하지 않다면 개인 채팅에서만 명령을 허용하세요.
+- `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`를 명시적으로 설정하세요.
+- Codex App 실행 권한은 `TELEGRAM_START_ALLOWED_CHAT_IDS`에 가능한 한 좁게 설정하세요.
+- `.env`는 Git에서 제외하고 `protect_env_file.ps1`로 ACL을 보호하세요.
+- 지원 요청 시에는 `diagnose.ps1 -SupportBundle` 출력만 공유하세요.
 
-1. Open `@BotFather` in Telegram.
-2. Rotate the token for the affected bot.
-3. Run `configure-codex-telegram.ps1` again with the new token.
-4. Reinstall or restart the listener with `install_all.ps1 -SkipConfigure`.
-5. Check `/p` and `/h` in Telegram.
+## Token이 노출된 경우
 
-If the exposed token was used in a group, also review `TELEGRAM_ALLOWED_CHAT_IDS`, `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`, and `TELEGRAM_START_ALLOWED_CHAT_IDS` before restarting the listener.
+1. Telegram에서 `@BotFather`를 엽니다.
+2. 영향을 받은 봇의 token을 rotate합니다.
+3. 새 token으로 `configure-codex-telegram.ps1`을 다시 실행합니다.
+4. `install_all.ps1 -SkipConfigure`로 listener를 다시 설치하거나 재시작합니다.
+5. Telegram에서 `/p`와 `/h`를 확인합니다.
 
-## Reporting Security Issues
+노출된 token을 그룹에서 사용했다면 listener를 다시 시작하기 전에 `TELEGRAM_ALLOWED_CHAT_IDS`, `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`, `TELEGRAM_START_ALLOWED_CHAT_IDS`도 함께 점검하세요.
 
-Do not open a public issue containing secrets. Open a minimal issue without tokens or chat IDs, or rotate the token first and then share only redacted diagnostic output.
+## 보안 이슈 보고
+
+민감정보가 포함된 공개 issue를 열지 마세요. Token이나 chat ID 없이 최소 정보만 적거나, 먼저 token을 rotate한 뒤 redaction된 진단 출력만 공유하세요.

@@ -11,8 +11,8 @@ foreach ($taskName in $taskNames) {
     if ($task) {
         Stop-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $taskName -TaskPath $taskPath -Confirm:$false
-        "Removed scheduled task: $taskPath$taskName"
+        "예약 작업 제거 완료: $taskPath$taskName"
     } else {
-        "Scheduled task not found: $taskPath$taskName"
+        "예약 작업을 찾을 수 없음: $taskPath$taskName"
     }
 }

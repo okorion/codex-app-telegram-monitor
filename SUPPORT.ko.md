@@ -1,5 +1,7 @@
 # 지원
 
+[English](SUPPORT.en.md)
+
 issue를 만들기 전에 redaction된 진단 리포트를 실행하세요.
 
 ```powershell

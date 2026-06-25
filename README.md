@@ -1,76 +1,76 @@
 # Codex App Telegram Monitor
 
-[English](README.md) | [한국어](README.ko.md)
+한국어 | [English](README.en.md)
 
-Windows PowerShell scripts for managing the Codex desktop app through a dedicated Telegram bot.
+전용 Telegram 봇으로 Windows용 Codex 데스크톱 앱을 관리하는 PowerShell 스크립트 모음입니다.
 
 ![Codex App Telegram Monitor overview](assets/codex-app-telegram-monitor-overview.png)
 
-The tool can:
+이 도구로 할 수 있는 일:
 
-- Send a daily Codex App status notification.
-- Start Codex automatically at 09:00 if it is not running.
-- Listen for Telegram commands from authorized chats.
-- Start Codex remotely from a phone with `/codex_on`.
-- Report health, version, listener heartbeat, and recent listener logs through Telegram.
-- Register short Telegram bot commands for quick mobile use.
+- 매일 09:00에 Codex App 실행 상태 알림 보내기
+- Codex가 실행 중이 아니면 09:00 점검 시 자동 실행하기
+- 허용된 Telegram 채팅에서 원격 명령 받기
+- 휴대폰 Telegram에서 `/o` 또는 `/codex_on`으로 Codex App 켜기
+- 실행 상태, 버전, listener heartbeat, 최근 로그를 Telegram으로 확인하기
+- `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, `/m` 같은 짧은 명령어를 Telegram 명령 메뉴에 등록하기
 
-It uses Telegram long polling. No inbound network port or webhook server is required.
+Telegram long polling을 사용하므로 외부에서 PC로 들어오는 포트나 webhook 서버가 필요하지 않습니다.
 
-## Feature Summary
+## 기능 요약
 
-| Area | What it does |
+| 영역 | 설명 |
 | --- | --- |
-| Daily monitor | At 09:00, checks whether Codex App is running. If it is not running, starts it and sends the result to Telegram. |
-| Remote control | Lets an authorized Telegram chat start Codex App with `/o` or `/codex_on`. |
-| Status checks | Reports running status, process count, app version, scheduler state, listener heartbeat, and recent logs. |
-| Mobile shortcuts | Registers one-letter Telegram commands, such as `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, and `/m`. |
-| Watchdog | Checks every 5 minutes whether the command listener task is running and starts it again if needed. |
-| Local security | Keeps secrets in ignored `.env`, protects `.env` ACLs, separates command/start-allowed chats, and redacts sensitive log content. |
-| Multi-PC use | Supports per-PC display names and documents the one-bot-token-per-active-PC long-polling limitation. |
+| 09:00 자동 점검 | 매일 09:00에 Codex App 실행 여부를 확인합니다. 실행 중이 아니면 실행하고 결과를 Telegram으로 보냅니다. |
+| 원격 실행 | 허용된 Telegram 채팅에서 `/o` 또는 `/codex_on`으로 Codex App을 실행합니다. |
+| 상태 확인 | 실행 상태, 프로세스 수, 앱 버전, 예약 작업 상태, listener heartbeat, 최근 로그를 확인합니다. |
+| 모바일 단축 명령 | `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, `/m` 같은 한 글자 명령을 지원합니다. |
+| Watchdog | 5분마다 command listener 예약 작업이 실행 중인지 확인하고, 멈춰 있으면 다시 시작합니다. |
+| 로컬 보안 | 민감정보는 Git에서 제외된 `.env`에 저장하고, `.env` ACL 보호, 명령/실행 허용 채팅 분리, 로그 민감정보 redaction을 적용합니다. |
+| 여러 PC 사용 | PC별 표시 이름을 지원하며, long polling 특성상 active PC마다 별도 bot token 사용을 권장합니다. |
 
-## How It Works
+## 동작 방식
 
 ```text
-Phone Telegram chat
+휴대폰 Telegram 채팅
   -> Telegram Bot API long polling
   -> Windows Task Scheduler listener
-  -> Codex App start/status/version/log actions
-  -> Telegram result message
+  -> Codex App 실행/상태/버전/로그 처리
+  -> Telegram 결과 메시지
 ```
 
-Separate scheduled tasks handle the daily 09:00 monitor and the listener watchdog:
+별도 예약 작업이 09:00 자동 점검과 listener watchdog을 담당합니다.
 
 ```text
-09:00 daily task -> check Codex App -> start if needed -> send Telegram result
-5 min watchdog  -> check listener task -> restart listener task if needed
+09:00 daily task -> Codex App 확인 -> 필요 시 실행 -> Telegram 결과 전송
+5 min watchdog  -> listener task 확인 -> 필요 시 listener task 재시작
 ```
 
-## Requirements
+## 요구 사항
 
-- Windows with PowerShell 5.1 or later.
-- Codex desktop app installed.
-- A Telegram bot created with `@BotFather`.
-- A personal chat with the bot. Send `/start` to the bot before configuration.
+- Windows 및 PowerShell 5.1 이상
+- Codex 데스크톱 앱 설치
+- `@BotFather`로 생성한 Telegram 봇
+- 봇과의 개인 채팅. 설정 전에 봇에게 `/start`를 보내야 합니다.
 
-## Quick Start
+## 빠른 시작
 
-Clone the repository:
+저장소를 clone합니다.
 
 ```powershell
 git clone https://github.com/okorion/codex-app-telegram-monitor.git
 cd codex-app-telegram-monitor
 ```
 
-Run the guided installer:
+통합 설치 스크립트를 실행합니다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
 ```
 
-The installer configures Telegram when `.env` is missing, protects the local `.env` ACL, registers the Telegram command menu, sends a test message, installs the daily monitor, installs the command listener, installs a listener watchdog, and runs `health-check.ps1`.
+설치 스크립트는 `.env`가 없으면 Telegram 설정을 진행하고, 로컬 `.env` ACL을 보호하고, Telegram 명령 메뉴를 등록하고, 테스트 메시지를 보내고, 09:00 daily monitor와 command listener, listener watchdog을 설치한 뒤 `health-check.ps1`을 실행합니다.
 
-Useful installer switches:
+유용한 설치 옵션:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipTelegramTest
@@ -80,63 +80,63 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipE
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipBotCommandMenu
 ```
 
-## Manual Setup
+## 수동 설정
 
-Configure Telegram:
+Telegram 설정:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram.ps1
 ```
 
-Optional GUI configuration:
+선택 사항인 GUI 설정:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram-gui.ps1
 ```
 
-Send a test Telegram message:
+Telegram 테스트 메시지 전송:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\telegram-test.ps1
 ```
 
-Preview the test message without sending it:
+전송 없이 테스트 메시지 본문만 미리 보기:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\telegram-test.ps1 -DryRun
 ```
 
-Install the daily 09:00 monitor:
+매일 09:00 monitor 설치:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_task.ps1
 ```
 
-Install the Telegram command listener and watchdog:
+Telegram command listener 및 watchdog 설치:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_command_listener_task.ps1
 ```
 
-Register or refresh the Telegram command menu:
+Telegram 명령 메뉴 등록 또는 갱신:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register_bot_commands.ps1
 ```
 
-Protect the local `.env` file ACL:
+로컬 `.env` 파일 ACL 보호:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\protect_env_file.ps1
 ```
 
-Check the setup:
+설정 상태 확인:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 ```
 
-Run a support-oriented diagnostic report:
+지원 요청용 진단 리포트 실행:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1
@@ -144,17 +144,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportB
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -Json
 ```
 
-Use `-SupportBundle` when opening a GitHub issue. Use `-Json` when another tool should parse the diagnostic result. Both outputs redact Telegram tokens, chat IDs, and common local user paths.
+GitHub issue를 만들 때는 `-SupportBundle` 출력을 사용하세요. 다른 도구가 진단 결과를 파싱해야 할 때는 `-Json`을 사용할 수 있습니다. 두 출력 모두 Telegram token, chat ID, 일반적인 로컬 사용자 경로를 redaction합니다.
 
-## Updating
+## 업데이트
 
-Update an existing clone:
+기존 clone을 업데이트합니다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update.ps1
 ```
 
-`update.ps1` pulls the latest repository changes, keeps the existing `.env`, refreshes scheduled tasks, restarts the listener task when installed, and runs diagnostics. For a manual update, run:
+`update.ps1`는 최신 저장소 변경을 가져오고, 기존 `.env`를 유지하고, 예약 작업을 갱신하고, listener 작업이 설치되어 있으면 재시작한 뒤 진단을 실행합니다. 수동 업데이트를 원하면 아래처럼 실행합니다.
 
 ```powershell
 git pull
@@ -163,11 +163,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipC
 
 ## Releases
 
-GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. See [RELEASE.md](RELEASE.md).
+GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP을 게시합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
 
-## Telegram Commands
+## Telegram 명령어
 
-Send these messages to an authorized bot chat:
+허용된 bot 채팅에 아래 메시지를 보냅니다.
 
 ```text
 /o
@@ -180,20 +180,20 @@ Send these messages to an authorized bot chat:
 /m
 ```
 
-Command reference:
+명령어 표:
 
-| Short | Full command | Purpose |
+| 짧은 명령 | 전체 명령 | 용도 |
 | --- | --- | --- |
-| `/o` | `/codex_on` | Start Codex App remotely. Sends a request message first, then a final `OK` or `WARN`. |
-| `/s` | `/codex_status` | Check whether Codex App is currently running. |
-| `/h` | `/codex_health` | Check Telegram, scheduler, listener, heartbeat, log, and `.env` ACL status. |
-| `/v` | `/codex_version` | Show Codex App detection details, package version, and process paths. |
-| `/l` | `/codex_logs` | Show recent listener logs. Defaults to 20 lines. |
-| `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
-| `/p` | `/ping` | Confirm that the command listener is responding. |
-| `/m` | `/help` | Show the command list. |
+| `/o` | `/codex_on` | Codex App을 원격 실행합니다. 요청 메시지를 먼저 보내고, 이후 최종 `OK` 또는 `WARN` 결과를 보냅니다. |
+| `/s` | `/codex_status` | Codex App이 현재 실행 중인지 확인합니다. |
+| `/h` | `/codex_health` | Telegram, 예약 작업, listener, heartbeat, 로그, `.env` ACL 상태를 확인합니다. |
+| `/v` | `/codex_version` | Codex App 감지 정보, package version, process path를 표시합니다. |
+| `/l` | `/codex_logs` | 최근 listener 로그를 표시합니다. 기본값은 20줄입니다. |
+| `/l 30` | `/codex_logs 30` | 지정한 줄 수만큼 최근 로그를 표시합니다. 허용 범위는 5-50줄입니다. |
+| `/p` | `/ping` | command listener가 응답 중인지 빠르게 확인합니다. |
+| `/m` | `/help` | 사용 가능한 명령 목록을 표시합니다. |
 
-Full command names are also supported:
+전체 명령어도 지원합니다.
 
 ```text
 /codex_on
@@ -206,17 +206,17 @@ Full command names are also supported:
 /help
 ```
 
-`/codex_on` sends a start request first. If Codex was not running, the listener waits up to 60 seconds and then sends a final `OK` or `WARN` message.
+`/codex_on`은 먼저 실행 요청 메시지를 보냅니다. Codex가 실행 중이 아니었다면 listener가 최대 60초까지 기다린 뒤 최종 `OK` 또는 `WARN` 메시지를 보냅니다.
 
-`/codex_health` reports bot, task scheduler, listener, watchdog, offset-file, heartbeat, log, and `.env` ACL status.
+`/codex_health`는 bot, Task Scheduler, listener, watchdog, offset file, heartbeat, log, `.env` ACL 상태를 보고합니다.
 
-`/codex_version` reports Codex App detection details, package version when available, and running process paths.
+`/codex_version`은 Codex App 감지 정보, 확인 가능한 package version, 실행 중인 process path를 보고합니다.
 
-`/codex_logs` sends recent listener logs. The default is 20 lines. The accepted range is 5 to 50 lines. Token-like values are redacted before sending.
+`/codex_logs`는 최근 listener 로그를 보냅니다. 기본값은 20줄이고, 허용 범위는 5-50줄입니다. token처럼 보이는 값은 전송 전에 redaction됩니다.
 
-`/ping` quickly confirms that the command listener is responding and reports the latest polling heartbeat.
+`/ping`은 command listener가 응답 중인지 확인하고 최신 polling heartbeat를 보여줍니다.
 
-Short aliases:
+단축 명령 매핑:
 
 ```text
 /o = /codex_on
@@ -228,11 +228,11 @@ Short aliases:
 /m = /help
 ```
 
-## Example Telegram Messages
+## Telegram 메시지 예시
 
 ![Telegram message examples](assets/telegram-message-examples.svg)
 
-Status OK:
+상태 OK:
 
 ```text
 Codex app monitor test
@@ -246,7 +246,7 @@ PC: DESKTOP-NAME
 Processed at: 2026-06-25 12:00:00
 ```
 
-Remote start flow:
+원격 실행 흐름:
 
 ```text
 원격 실행 요청: ▶️ STARTED
@@ -263,11 +263,11 @@ PC: DESKTOP-NAME
 프로세스: 1개
 ```
 
-## Configuration
+## 설정
 
-`configure-codex-telegram.ps1` creates a local `.env` file. This file contains secrets and is intentionally ignored by Git.
+`configure-codex-telegram.ps1`은 로컬 `.env` 파일을 생성합니다. 이 파일에는 민감정보가 들어가며 Git에서 의도적으로 제외됩니다.
 
-Supported `.env` values:
+지원하는 `.env` 값:
 
 ```dotenv
 TELEGRAM_BOT_TOKEN=
@@ -285,38 +285,38 @@ CODEX_LOG_KEEP_FILES=5
 CODEX_HEARTBEAT_STALE_SECONDS=120
 ```
 
-`TELEGRAM_ALLOWED_CHAT_IDS` accepts comma, semicolon, or whitespace separated chat IDs. When it is empty, the listener falls back to `TELEGRAM_PERSONAL_CHAT_ID` and `TELEGRAM_CHAT_ID`.
+`TELEGRAM_ALLOWED_CHAT_IDS`는 쉼표, 세미콜론, 공백으로 구분된 chat ID 목록을 받습니다. 비어 있으면 `TELEGRAM_PERSONAL_CHAT_ID`와 `TELEGRAM_CHAT_ID`를 사용합니다.
 
-`TELEGRAM_COMMAND_ALLOWED_CHAT_IDS` controls which chats may run commands. When it is empty, it falls back to `TELEGRAM_ALLOWED_CHAT_IDS`.
+`TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`는 명령 실행을 허용할 채팅을 제어합니다. 비어 있으면 `TELEGRAM_ALLOWED_CHAT_IDS`를 사용합니다.
 
-`TELEGRAM_START_ALLOWED_CHAT_IDS` controls which command-authorized chats may start Codex App with `/o` or `/codex_on`. When it is empty, it falls back to `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`.
+`TELEGRAM_START_ALLOWED_CHAT_IDS`는 `/o` 또는 `/codex_on`으로 Codex App을 실제 실행할 수 있는 채팅을 제어합니다. 비어 있으면 `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`를 사용합니다.
 
-`CODEX_DEVICE_NAME` appears in Telegram messages. Use a short friendly name when you run the monitor on more than one PC.
+`CODEX_DEVICE_NAME`은 Telegram 메시지에 표시되는 PC 이름입니다. 여러 PC에서 쓸 때는 짧고 구분 가능한 이름을 넣는 것이 좋습니다.
 
-When `CODEX_APP_USER_MODEL_ID=auto`, the listener tries to detect Codex with `Get-StartApps`. When detection fails, it falls back to `OpenAI.Codex_2p2nqsd0c76g0!App`.
+`CODEX_APP_USER_MODEL_ID=auto`이면 `Get-StartApps`로 Codex를 감지합니다. 감지에 실패하면 `OpenAI.Codex_2p2nqsd0c76g0!App`을 사용합니다.
 
-When `CODEX_PROCESS_PATH_PATTERN=auto`, the scripts use `*\OpenAI.Codex_*\app\Codex.exe`.
+`CODEX_PROCESS_PATH_PATTERN=auto`이면 스크립트는 `*\OpenAI.Codex_*\app\Codex.exe` 패턴을 사용합니다.
 
-`CODEX_LOG_MAX_BYTES` and `CODEX_LOG_KEEP_FILES` control local listener log rotation. The default keeps five rotated files after the current log reaches 1 MB.
+`CODEX_LOG_MAX_BYTES`와 `CODEX_LOG_KEEP_FILES`는 local listener 로그 회전을 제어합니다. 기본값은 현재 로그가 1MB에 도달하면 rotate하고, rotate 파일 5개를 유지합니다.
 
-`CODEX_HEARTBEAT_STALE_SECONDS` controls when `/codex_health` reports the listener heartbeat as stale.
+`CODEX_HEARTBEAT_STALE_SECONDS`는 `/codex_health`에서 listener heartbeat를 stale로 판단하는 기준입니다.
 
-## Multiple PCs
+## 여러 PC에서 사용
 
-Telegram `getUpdates` long polling is best used with one active PC per bot token. If you install this monitor on multiple PCs, create a separate Telegram bot for each PC, or ensure only one PC uses a given bot token at a time.
+Telegram `getUpdates` long polling은 하나의 bot token을 하나의 active PC에서 사용하는 방식에 가장 잘 맞습니다. 여러 PC에 설치하려면 PC마다 별도 Telegram 봇을 만들거나, 하나의 bot token을 동시에 사용하는 PC가 하나만 되도록 관리하세요.
 
-Set a distinct `CODEX_DEVICE_NAME` on each PC so Telegram messages clearly show which computer handled the command.
+각 PC에 서로 다른 `CODEX_DEVICE_NAME`을 설정하면 Telegram 메시지에서 어떤 컴퓨터가 명령을 처리했는지 쉽게 구분할 수 있습니다.
 
-Recommended multi-PC setup:
+권장 구성:
 
 ```text
 PC A -> Telegram bot A -> CODEX_DEVICE_NAME=Home-PC
 PC B -> Telegram bot B -> CODEX_DEVICE_NAME=Office-PC
 ```
 
-## Scheduled Tasks
+## 예약 작업
 
-The installer scripts create these Windows Task Scheduler entries:
+설치 스크립트는 Windows Task Scheduler에 아래 작업을 만듭니다.
 
 ```text
 \Codex\Ensure Codex App Running at 9AM
@@ -324,63 +324,63 @@ The installer scripts create these Windows Task Scheduler entries:
 \Codex\Codex Telegram Command Listener Watchdog
 ```
 
-The command listener starts at user logon and keeps polling Telegram while the Windows user session is active. The watchdog checks every 5 minutes and starts the listener task again if it is not running.
+command listener는 사용자 로그온 시 시작되고, Windows 사용자 세션이 활성 상태일 때 Telegram polling을 유지합니다. watchdog은 5분마다 listener task가 실행 중인지 확인하고, 멈춰 있으면 다시 시작합니다.
 
-These scripts cannot start GUI apps when the PC is powered off, asleep, or not logged in.
+PC가 꺼져 있거나 절전 상태이거나 사용자가 로그인되어 있지 않으면 이 스크립트들은 GUI 앱을 시작할 수 없습니다.
 
-## Uninstall
+## 제거
 
-Remove scheduled tasks while keeping `.env`, logs, and state:
+`.env`, 로그, 상태 파일은 유지하고 예약 작업만 제거:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1
 ```
 
-Remove the daily monitor task only:
+09:00 daily monitor 작업만 제거:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_task.ps1
 ```
 
-Remove the Telegram command listener and watchdog tasks:
+Telegram command listener 및 watchdog 작업 제거:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_listener_task.ps1
 ```
 
-Delete local configuration and runtime files only when you intentionally want a full cleanup:
+로컬 설정과 실행 파일까지 모두 지우려면 의도적으로 옵션을 지정합니다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1 -RemoveEnv -RemoveLogs -RemoveState
 ```
 
-## Security Notes
+## 보안 참고
 
-- Do not commit `.env`.
-- Treat `TELEGRAM_BOT_TOKEN` and chat IDs as sensitive.
-- Use a dedicated Telegram bot for this automation.
-- Prefer one dedicated bot token per PC.
-- Set `TELEGRAM_START_ALLOWED_CHAT_IDS` more narrowly than command chats if some chats should only inspect status.
-- `protect_env_file.ps1` restricts `.env` ACL inheritance and grants access to the current user, SYSTEM, and local Administrators.
-- Rotate the bot token in `@BotFather` if it is ever exposed.
-- The listener uses Telegram long polling and does not expose a local HTTP server.
-- `/codex_logs` redacts token-like values and common local user paths before sending logs to Telegram.
+- `.env`를 commit하지 마세요.
+- `TELEGRAM_BOT_TOKEN`과 chat ID는 민감정보로 취급하세요.
+- 이 자동화에는 전용 Telegram 봇을 사용하는 것을 권장합니다.
+- PC마다 별도 bot token을 사용하는 것을 권장합니다.
+- 상태 조회만 허용할 채팅과 실제 실행까지 허용할 채팅을 나누려면 `TELEGRAM_START_ALLOWED_CHAT_IDS`를 더 좁게 설정하세요.
+- `protect_env_file.ps1`은 `.env` ACL 상속을 끊고 현재 사용자, SYSTEM, local Administrators에 권한을 부여합니다.
+- bot token이 노출되면 `@BotFather`에서 token을 rotate하세요.
+- listener는 Telegram long polling을 사용하며 로컬 HTTP 서버를 외부에 노출하지 않습니다.
+- `/codex_logs`는 Telegram으로 로그를 보내기 전에 token처럼 보이는 값과 일반적인 로컬 사용자 경로를 redaction합니다.
 
-For a fuller security model, see [SECURITY.md](SECURITY.md).
+더 자세한 보안 모델은 [SECURITY.md](SECURITY.md)를 확인하세요.
 
-## Support
+## 지원
 
-Before opening an issue, run:
+issue를 만들기 전에 아래 명령을 실행하세요.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
 ```
 
-Then include the redacted output in the issue. See [SUPPORT.md](SUPPORT.md) for details.
+그리고 redaction된 출력을 issue에 포함하세요. 자세한 내용은 [SUPPORT.md](SUPPORT.md)를 확인하세요.
 
-## Validation
+## 검증
 
-Parse-check all PowerShell scripts:
+모든 PowerShell 스크립트 parse check:
 
 ```powershell
 $scripts = Get-ChildItem -Filter *.ps1
@@ -394,7 +394,7 @@ foreach ($script in $scripts) {
 }
 ```
 
-Run the dry-run checks:
+dry-run 점검:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\telegram-test.ps1 -DryRun
@@ -402,7 +402,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\ensure-codex-app-with-
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register_bot_commands.ps1 -DryRun
 ```
 
-Run Pester tests when Pester 5 is available:
+Pester 5가 설치되어 있으면 테스트를 실행할 수 있습니다.
 
 ```powershell
 Invoke-Pester -Path .\tests

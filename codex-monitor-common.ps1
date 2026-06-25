@@ -9,7 +9,7 @@ function Import-CodexDotEnv {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if (!(Test-Path -LiteralPath $Path)) {
-        throw "Env file not found: $Path"
+        throw "환경 파일을 찾을 수 없습니다: $Path"
     }
 
     foreach ($line in Get-Content -LiteralPath $Path) {
@@ -136,7 +136,7 @@ function Get-CodexDeviceName {
             return $env:COMPUTERNAME
         }
 
-        return "Windows PC"
+    return "Windows PC"
     }
 
     return $configured
@@ -307,7 +307,7 @@ function Start-CodexApp {
 function Get-CodexTelegramToken {
     $token = [Environment]::GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "Process")
     if ([string]::IsNullOrWhiteSpace($token)) {
-        throw "Telegram configuration is missing TELEGRAM_BOT_TOKEN."
+        throw "Telegram 설정에 TELEGRAM_BOT_TOKEN이 없습니다."
     }
 
     return $token
@@ -320,7 +320,7 @@ function Get-CodexNotificationChatId {
     }
 
     if ([string]::IsNullOrWhiteSpace($chatId)) {
-        throw "Telegram configuration is missing TELEGRAM_CHAT_ID."
+        throw "Telegram 설정에 TELEGRAM_CHAT_ID가 없습니다."
     }
 
     return $chatId
@@ -344,7 +344,7 @@ function Get-CodexAllowedChatIds {
 
     $chatIds = @($chatIds | Select-Object -Unique)
     if ($chatIds.Count -eq 0) {
-        throw "Telegram configuration is missing TELEGRAM_CHAT_ID."
+        throw "Telegram 설정에 TELEGRAM_CHAT_ID가 없습니다."
     }
 
     return $chatIds
@@ -434,13 +434,13 @@ function Test-CodexTelegramBot {
 
 function Get-CodexTelegramBotCommandDefinitions {
     return @(
-        @{ command = "o"; description = "Start Codex app" },
-        @{ command = "s"; description = "Check Codex app status" },
-        @{ command = "h"; description = "Check monitor health" },
-        @{ command = "v"; description = "Show Codex app version" },
-        @{ command = "l"; description = "Show recent listener logs" },
-        @{ command = "p"; description = "Ping command listener" },
-        @{ command = "m"; description = "Show command help" }
+        @{ command = "o"; description = "Codex 앱 실행" },
+        @{ command = "s"; description = "Codex 앱 상태 확인" },
+        @{ command = "h"; description = "모니터 상태 점검" },
+        @{ command = "v"; description = "Codex 앱 버전 확인" },
+        @{ command = "l"; description = "최근 listener 로그 확인" },
+        @{ command = "p"; description = "listener 응답 확인" },
+        @{ command = "m"; description = "명령 도움말 보기" }
     )
 }
 
@@ -548,28 +548,28 @@ function Get-CodexAgeText {
     param([AllowNull()][Nullable[datetime]]$Timestamp)
 
     if ($null -eq $Timestamp) {
-        return "unknown"
+        return "알 수 없음"
     }
 
     $seconds = [math]::Max(0, [int]((Get-Date) - $Timestamp).TotalSeconds)
     if ($seconds -lt 60) {
-        return "$seconds sec ago"
+        return "$seconds초 전"
     }
 
     $minutes = [int][math]::Floor($seconds / 60)
     if ($minutes -lt 60) {
-        return "$minutes min ago"
+        return "$minutes분 전"
     }
 
     $hours = [int][math]::Floor($minutes / 60)
-    return "$hours hr ago"
+    return "$hours시간 전"
 }
 
 function Protect-CodexEnvFile {
     param([Parameter(Mandatory = $true)][string]$Path)
 
     if (!(Test-Path -LiteralPath $Path)) {
-        throw "Env file not found: $Path"
+        throw "환경 파일을 찾을 수 없습니다: $Path"
     }
 
     $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -577,14 +577,14 @@ function Protect-CodexEnvFile {
 
     & icacls.exe $Path /inheritance:r | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to disable inherited ACLs on env file."
+        throw "환경 파일의 상속 ACL 해제에 실패했습니다."
     }
 
     foreach ($sid in $grantSids) {
         $ace = "*${sid}:F"
         & icacls.exe $Path /grant:r $ace | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            throw "Failed to set ACL on env file for SID $sid."
+            throw "SID $sid에 대한 환경 파일 ACL 설정에 실패했습니다."
         }
     }
 }

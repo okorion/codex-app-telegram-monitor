@@ -9,7 +9,7 @@ $taskPath = "\Codex\"
 
 $task = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
 if (!$task) {
-    throw "Scheduled task not found: $taskPath$taskName"
+    throw "예약 작업을 찾을 수 없습니다: $taskPath$taskName"
 }
 
 if ($task.State -ne "Running") {

@@ -1,39 +1,28 @@
 ---
-name: Install failure
-about: Report a setup or install_all.ps1 failure
-title: "[Install] "
+name: 설치 실패
+about: install_all.ps1 또는 초기 설정 실패를 제보합니다
+title: "[설치] "
 labels: install
 assignees: ""
 ---
 
-## What failed?
+## 무엇이 실패했나요?
 
-Describe the failed step or paste the install summary.
+실패한 단계 또는 install summary를 붙여 주세요.
 
-어떤 설치 단계가 실패했는지 적거나 install summary를 붙여 넣어 주세요.
+## 진단 출력
 
-## Diagnostic output
-
-Run:
+아래 명령을 실행하세요.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
 ```
 
-Paste the redacted output here.
+redaction된 출력을 여기에 붙여 주세요.
 
-redaction된 출력을 여기에 붙여 넣어 주세요.
+## 확인한 내용
 
-## Notes
-
-- Did you send `/start` to the Telegram bot?
-- Can Codex App be opened manually?
-- Windows version:
-- PowerShell version:
-
-## 참고
-
-- Telegram bot에 `/start`를 보냈나요?
+- Telegram bot에게 `/start`를 보냈나요?
 - Codex App을 수동으로 열 수 있나요?
 - Windows 버전:
 - PowerShell 버전:
