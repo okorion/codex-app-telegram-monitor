@@ -3,6 +3,7 @@
 $envFile = Join-Path $PSScriptRoot ".env"
 $monitorTaskName = "Ensure Codex App Running at 9AM"
 $listenerTaskName = "Codex Telegram Command Listener"
+$watchdogTaskName = "Codex Telegram Command Listener Watchdog"
 $taskPath = "\Codex\"
 $offsetFile = Join-Path $PSScriptRoot "state\telegram-command-offset.txt"
 
@@ -76,16 +77,31 @@ function Test-TelegramBot {
 $envValues = Read-DotEnvKeys -Path $envFile
 $tokenPresent = ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_BOT_TOKEN"])
 $chatPresent = ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_CHAT_ID"]) -or ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_PERSONAL_CHAT_ID"])
+$allowedChatIds = @()
+if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_ALLOWED_CHAT_IDS"])) {
+    $allowedChatIds = @($envValues["TELEGRAM_ALLOWED_CHAT_IDS"] -split "[,;\s]+" | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+} else {
+    $fallbackChatIds = @()
+    if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_PERSONAL_CHAT_ID"])) {
+        $fallbackChatIds += $envValues["TELEGRAM_PERSONAL_CHAT_ID"]
+    }
+    if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_CHAT_ID"])) {
+        $fallbackChatIds += $envValues["TELEGRAM_CHAT_ID"]
+    }
+    $allowedChatIds = @($fallbackChatIds | Select-Object -Unique)
+}
 $botReachable = Test-TelegramBot -Token $envValues["TELEGRAM_BOT_TOKEN"]
 
 $monitorTask = Get-TaskHealth -TaskName $monitorTaskName -TaskPath $taskPath -EnvFile $envFile
 $listenerTask = Get-TaskHealth -TaskName $listenerTaskName -TaskPath $taskPath -EnvFile $envFile
+$watchdogTask = Get-TaskHealth -TaskName $watchdogTaskName -TaskPath $taskPath -EnvFile $envFile
 
 [PSCustomObject]@{
     EnvFile = $envFile
     EnvFileExists = Test-Path -LiteralPath $envFile
     TelegramBotTokenPresent = $tokenPresent
     TelegramChatIdPresent = $chatPresent
+    TelegramAllowedChatIdsCount = $allowedChatIds.Count
     TelegramBotReachable = $botReachable
     MonitorTaskExists = $monitorTask.Exists
     MonitorTaskUsesCodexEnv = $monitorTask.UsesCodexEnv
@@ -96,6 +112,12 @@ $listenerTask = Get-TaskHealth -TaskName $listenerTaskName -TaskPath $taskPath -
     CommandListenerTaskState = $listenerTask.State
     CommandListenerLastRunTime = $listenerTask.LastRunTime
     CommandListenerLastTaskResult = $listenerTask.LastTaskResult
+    CommandListenerWatchdogTaskExists = $watchdogTask.Exists
+    CommandListenerWatchdogUsesCodexEnv = $watchdogTask.UsesCodexEnv
+    CommandListenerWatchdogState = $watchdogTask.State
+    CommandListenerWatchdogNextRunTime = $watchdogTask.NextRunTime
+    CommandListenerWatchdogLastRunTime = $watchdogTask.LastRunTime
+    CommandListenerWatchdogLastTaskResult = $watchdogTask.LastTaskResult
     CommandListenerOffsetFileExists = Test-Path -LiteralPath $offsetFile
 } | Format-List
 
@@ -109,4 +131,8 @@ if ($monitorTask.Exists -and !$monitorTask.UsesCodexEnv) {
 
 if ($listenerTask.Exists -and !$listenerTask.UsesCodexEnv) {
     exit 4
+}
+
+if ($watchdogTask.Exists -and !$watchdogTask.UsesCodexEnv) {
+    exit 5
 }

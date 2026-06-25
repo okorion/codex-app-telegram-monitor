@@ -4,10 +4,11 @@ Windows PowerShell scripts for managing the Codex desktop app through a dedicate
 
 The tool can:
 
-- Send a daily Codex app status notification.
+- Send a daily Codex App status notification.
 - Start Codex automatically at 09:00 if it is not running.
-- Listen for Telegram commands from an authorized chat.
+- Listen for Telegram commands from authorized chats.
 - Start Codex remotely from a phone with `/codex_on`.
+- Report health, version, and recent listener logs through Telegram.
 
 It uses Telegram long polling. No inbound network port or webhook server is required.
 
@@ -27,7 +28,25 @@ git clone https://github.com/okorion/codex-app-telegram-monitor.git
 cd codex-app-telegram-monitor
 ```
 
-Configure the Telegram bot token and chat ID:
+Run the guided installer:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
+```
+
+The installer configures Telegram when `.env` is missing, sends a test message, installs the daily monitor, installs the command listener, installs a listener watchdog, and runs `health-check.ps1`.
+
+Useful installer switches:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipTelegramTest
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipDailyMonitor
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipCommandListener
+```
+
+## Manual Setup
+
+Configure Telegram:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram.ps1
@@ -51,7 +70,7 @@ Install the daily 09:00 monitor:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_task.ps1
 ```
 
-Install the Telegram command listener:
+Install the Telegram command listener and watchdog:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_command_listener_task.ps1
@@ -65,17 +84,25 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 
 ## Telegram Commands
 
-Send these messages to the configured bot chat:
+Send these messages to an authorized bot chat:
 
 ```text
 /codex_on
 /codex_status
+/codex_health
+/codex_version
+/codex_logs
+/codex_logs 30
 /help
 ```
 
 `/codex_on` sends a start request first. If Codex was not running, the listener waits up to 60 seconds and then sends a final `OK` or `WARN` message.
 
-The listener only accepts messages from the configured `TELEGRAM_CHAT_ID` or `TELEGRAM_PERSONAL_CHAT_ID`.
+`/codex_health` reports bot, task scheduler, listener, watchdog, and offset-file status.
+
+`/codex_version` reports Codex App detection details, package version when available, and running process paths.
+
+`/codex_logs` sends recent listener logs. The default is 20 lines. The accepted range is 5 to 50 lines. Token-like values are redacted before sending.
 
 ## Configuration
 
@@ -87,12 +114,17 @@ Supported `.env` values:
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 TELEGRAM_PERSONAL_CHAT_ID=
+TELEGRAM_ALLOWED_CHAT_IDS=
 CODEX_MONITOR_TITLE=Codex app monitor test
-CODEX_APP_USER_MODEL_ID=OpenAI.Codex_2p2nqsd0c76g0!App
-CODEX_PROCESS_PATH_PATTERN=*\OpenAI.Codex_*\app\Codex.exe
+CODEX_APP_USER_MODEL_ID=auto
+CODEX_PROCESS_PATH_PATTERN=auto
 ```
 
-If Codex is installed with a different app user model ID or process path on another computer, override `CODEX_APP_USER_MODEL_ID` or `CODEX_PROCESS_PATH_PATTERN` in `.env`.
+`TELEGRAM_ALLOWED_CHAT_IDS` accepts comma, semicolon, or whitespace separated chat IDs. When it is empty, the listener falls back to `TELEGRAM_PERSONAL_CHAT_ID` and `TELEGRAM_CHAT_ID`.
+
+When `CODEX_APP_USER_MODEL_ID=auto`, the listener tries to detect Codex with `Get-StartApps`. When detection fails, it falls back to `OpenAI.Codex_2p2nqsd0c76g0!App`.
+
+When `CODEX_PROCESS_PATH_PATTERN=auto`, the scripts use `*\OpenAI.Codex_*\app\Codex.exe`.
 
 ## Scheduled Tasks
 
@@ -101,9 +133,12 @@ The installer scripts create these Windows Task Scheduler entries:
 ```text
 \Codex\Ensure Codex App Running at 9AM
 \Codex\Codex Telegram Command Listener
+\Codex\Codex Telegram Command Listener Watchdog
 ```
 
-The command listener starts at user logon and keeps polling Telegram while the Windows user session is active. It cannot start GUI apps when the PC is powered off, asleep, or not logged in.
+The command listener starts at user logon and keeps polling Telegram while the Windows user session is active. The watchdog checks every 5 minutes and starts the listener task again if it is not running.
+
+These scripts cannot start GUI apps when the PC is powered off, asleep, or not logged in.
 
 ## Uninstall
 
@@ -113,7 +148,7 @@ Remove the daily monitor task:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_task.ps1
 ```
 
-Remove the Telegram command listener task:
+Remove the Telegram command listener and watchdog tasks:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_listener_task.ps1
@@ -126,6 +161,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 - Use a dedicated Telegram bot for this automation.
 - Rotate the bot token in `@BotFather` if it is ever exposed.
 - The listener uses Telegram long polling and does not expose a local HTTP server.
+- `/codex_logs` redacts token-like values before sending logs to Telegram.
 
 ## Validation
 

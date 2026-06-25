@@ -48,6 +48,12 @@ function Get-EnvOrDefault {
     return $value
 }
 
+function Test-AutoConfigValue {
+    param([AllowNull()][string]$Value)
+
+    return [string]::IsNullOrWhiteSpace($Value) -or $Value.Trim().ToLowerInvariant() -eq "auto"
+}
+
 function ConvertTo-TelegramHtml {
     param([AllowNull()][string]$Text)
 
@@ -56,6 +62,43 @@ function ConvertTo-TelegramHtml {
     }
 
     return $Text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")
+}
+
+function Get-CodexStartApp {
+    try {
+        return Get-StartApps |
+            Where-Object { $_.AppID -like "OpenAI.Codex*" -or $_.Name -like "*Codex*" } |
+            Select-Object -First 1
+    } catch {
+        return $null
+    }
+}
+
+function Resolve-CodexAppSettings {
+    $configuredAppId = [Environment]::GetEnvironmentVariable("CODEX_APP_USER_MODEL_ID", "Process")
+    $configuredPathPattern = [Environment]::GetEnvironmentVariable("CODEX_PROCESS_PATH_PATTERN", "Process")
+    $startApp = Get-CodexStartApp
+
+    if (Test-AutoConfigValue -Value $configuredAppId) {
+        if ($startApp -and ![string]::IsNullOrWhiteSpace($startApp.AppID)) {
+            $resolvedAppId = $startApp.AppID
+        } else {
+            $resolvedAppId = $CodexAppUserModelId
+        }
+    } else {
+        $resolvedAppId = $configuredAppId
+    }
+
+    if (Test-AutoConfigValue -Value $configuredPathPattern) {
+        $resolvedPathPattern = $CodexProcessPathPattern
+    } else {
+        $resolvedPathPattern = $configuredPathPattern
+    }
+
+    return @{
+        AppUserModelId = $resolvedAppId
+        ProcessPathPattern = $resolvedPathPattern
+    }
 }
 
 function Send-TelegramMessage {
@@ -93,8 +136,9 @@ function Get-CodexAppProcesses {
 }
 
 Import-DotEnv -Path $EnvFile
-$CodexAppUserModelId = Get-EnvOrDefault -Name "CODEX_APP_USER_MODEL_ID" -DefaultValue $CodexAppUserModelId
-$CodexProcessPathPattern = Get-EnvOrDefault -Name "CODEX_PROCESS_PATH_PATTERN" -DefaultValue $CodexProcessPathPattern
+$codexSettings = Resolve-CodexAppSettings
+$CodexAppUserModelId = $codexSettings.AppUserModelId
+$CodexProcessPathPattern = $codexSettings.ProcessPathPattern
 $MessageTitle = Get-EnvOrDefault -Name "CODEX_MONITOR_TITLE" -DefaultValue $MessageTitle
 
 $checkedAt = Get-Date

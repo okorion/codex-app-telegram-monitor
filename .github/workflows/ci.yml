@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          $scripts = Get-ChildItem -Path . -Filter *.ps1 -Recurse
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $messages = ($errors | ForEach-Object { $_.Message }) -join "`n"
+              throw "Parse failed: $($script.FullName)`n$messages"
+            }
+          }
+
+      - name: Check ignored local state is not tracked
+        shell: pwsh
+        run: |
+          $tracked = git ls-files
+          $forbidden = $tracked | Where-Object {
+            $_ -eq ".env" -or
+            ($_ -like ".env.*" -and $_ -ne ".env.example") -or
+            $_ -like "logs/*" -or
+            $_ -like "state/*"
+          }
+          if ($forbidden) {
+            throw "Forbidden tracked files:`n$($forbidden -join "`n")"
+          }
+
+      - name: Secret pattern scan
+        shell: pwsh
+        run: |
+          $patterns = @(
+            'gho_[A-Za-z0-9_]+',
+            'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}',
+            '[0-9]{8,}:[A-Za-z0-9_-]{20,}',
+            'C:\\Users\\[^\\]+\\Documents\\Codex'
+          )
+          $files = git ls-files
+          foreach ($file in $files) {
+            $text = Get-Content -LiteralPath $file -Raw -ErrorAction SilentlyContinue
+            foreach ($pattern in $patterns) {
+              if ($text -match $pattern) {
+                throw "Potential secret or local path found in $file"
+              }
+            }
+          }

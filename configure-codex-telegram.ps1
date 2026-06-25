@@ -73,9 +73,10 @@ $lines = @(
     "TELEGRAM_BOT_TOKEN=$token",
     "TELEGRAM_CHAT_ID=$($chat.id)",
     "TELEGRAM_PERSONAL_CHAT_ID=$($chat.id)",
+    "TELEGRAM_ALLOWED_CHAT_IDS=$($chat.id)",
     "CODEX_MONITOR_TITLE=Codex app monitor test",
-    "CODEX_APP_USER_MODEL_ID=OpenAI.Codex_2p2nqsd0c76g0!App",
-    "CODEX_PROCESS_PATH_PATTERN=*\OpenAI.Codex_*\app\Codex.exe"
+    "CODEX_APP_USER_MODEL_ID=auto",
+    "CODEX_PROCESS_PATH_PATTERN=auto"
 )
 
 Set-Content -LiteralPath $EnvFile -Value $lines -Encoding UTF8
