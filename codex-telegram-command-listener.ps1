@@ -495,7 +495,7 @@ function Get-RequestedLogLineCount {
     param([AllowNull()][string]$Text)
 
     $count = 20
-    if (![string]::IsNullOrWhiteSpace($Text) -and $Text -match '^/codex_logs(?:@[A-Za-z0-9_]+)?\s+(\d+)') {
+    if (![string]::IsNullOrWhiteSpace($Text) -and $Text -match '^/(?:codex_logs|logs|l)(?:@[A-Za-z0-9_]+)?\s+(\d+)') {
         $count = [int]$matches[1]
     }
 
@@ -589,12 +589,16 @@ function New-HelpMessage {
         "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
         "",
         "<b>사용 가능한 명령</b>",
-        "/codex_on - Codex 앱 실행",
-        "/codex_status - 실행 상태 확인",
-        "/codex_health - 설정 및 스케줄러 상태 확인",
-        "/codex_version - Codex 앱 버전 및 감지 정보",
-        "/codex_logs [count] - 최근 리스너 로그 확인",
-        "/help - 명령 목록 보기"
+        "/o - Codex 앱 실행",
+        "/s - 실행 상태 확인",
+        "/h - 설정 및 스케줄러 상태 확인",
+        "/v - Codex 앱 버전 및 감지 정보",
+        "/l [count] - 최근 리스너 로그 확인",
+        "/m - 명령 목록 보기",
+        "",
+        "<b>전체 명령</b>",
+        "/codex_on, /codex_status, /codex_health",
+        "/codex_version, /codex_logs, /help"
     ) -join "`n"
 }
 
@@ -609,34 +613,39 @@ function Get-CommandType {
     $lower = $trimmed.ToLowerInvariant()
     $lower = $lower -replace '^/([a-z0-9_]+)@[a-z0-9_]+', '/$1'
 
-    if ($lower -match '^/(start|help)$') {
+    if ($lower -match '^/(start|help|m)$' -or
+        $lower -match '^/(start|help|m)@[a-z0-9_]+$') {
         return "help"
     }
 
-    if ($lower -match '^/(codex_on|codex_start|startcodex)$' -or
+    if ($lower -match '^/(codex_on|codex_start|startcodex|o)$' -or
+        $lower -match '^/(codex_on|codex_start|startcodex|o)@[a-z0-9_]+$' -or
         $lower -in @("codex on", "codex start", "codex run", "codex 실행") -or
         $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(켜|켜기|실행|시작)(해줘|해주세요)?$') {
         return "start"
     }
 
-    if ($lower -match '^/(codex_status|status)$' -or
+    if ($lower -match '^/(codex_status|status|s)$' -or
+        $lower -match '^/(codex_status|status|s)@[a-z0-9_]+$' -or
         $lower -in @("codex status", "codex 상태") -or
         $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(상태|확인|체크)$') {
         return "status"
     }
 
-    if ($lower -match '^/(codex_health|health)$' -or
+    if ($lower -match '^/(codex_health|health|h)$' -or
+        $lower -match '^/(codex_health|health|h)@[a-z0-9_]+$' -or
         $lower -in @("codex health", "codex 헬스", "codex 점검")) {
         return "health"
     }
 
-    if ($lower -match '^/(codex_version|version)$' -or
+    if ($lower -match '^/(codex_version|version|v)$' -or
+        $lower -match '^/(codex_version|version|v)@[a-z0-9_]+$' -or
         $lower -in @("codex version", "codex 버전")) {
         return "version"
     }
 
-    if ($lower -match '^/(codex_logs|logs)(\s+\d+)?$' -or
-        $lower -match '^/(codex_logs|logs)@[a-z0-9_]+(\s+\d+)?$') {
+    if ($lower -match '^/(codex_logs|logs|l)(\s+\d+)?$' -or
+        $lower -match '^/(codex_logs|logs|l)@[a-z0-9_]+(\s+\d+)?$') {
         return "logs"
     }
 

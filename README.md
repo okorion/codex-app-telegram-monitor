@@ -87,6 +87,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 Send these messages to an authorized bot chat:
 
 ```text
+/o
+/s
+/h
+/v
+/l
+/l 30
+/m
+```
+
+Full command names are also supported:
+
+```text
 /codex_on
 /codex_status
 /codex_health
@@ -103,6 +115,17 @@ Send these messages to an authorized bot chat:
 `/codex_version` reports Codex App detection details, package version when available, and running process paths.
 
 `/codex_logs` sends recent listener logs. The default is 20 lines. The accepted range is 5 to 50 lines. Token-like values are redacted before sending.
+
+Short aliases:
+
+```text
+/o = /codex_on
+/s = /codex_status
+/h = /codex_health
+/v = /codex_version
+/l = /codex_logs
+/m = /help
+```
 
 ## Configuration
 
