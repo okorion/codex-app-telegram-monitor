@@ -2,6 +2,15 @@
 
 Codex App Telegram Monitor의 주요 변경 사항을 기록합니다.
 
+## 0.5.0 - 2026-06-25
+
+- 그룹 채팅에서 `/s@other_bot`처럼 다른 봇을 명시한 명령에는 Codex 관리봇이 반응하지 않도록 target 판별을 강화했습니다.
+- `codex status @codex_manager_bot`처럼 bot mention이 붙은 자연어형 명령도 정상적으로 해석하도록 개선했습니다.
+- watchdog이 listener task의 `Running` 상태뿐 아니라 heartbeat freshness까지 확인하고, heartbeat가 없거나 오래되면 listener를 재시작하도록 개선했습니다.
+- `.env`, listener 로그, heartbeat, offset, `VERSION` 읽기에 명시적 UTF-8/ASCII 인코딩을 적용해 Windows PowerShell 환경의 한글 깨짐 가능성을 줄였습니다.
+- GitHub Release workflow에 수동 실행, tag 검증, release archive 필수/금지 파일 검증, SHA256 checksum 산출물을 추가했습니다.
+- UTF-8 dotenv, 다른 봇 mention 무시, Telegram 메시지 포맷 회귀 테스트를 추가했습니다.
+
 ## 0.4.0 - 2026-06-25
 
 - polling conflict WARN이 오래된 로그 때문에 계속 남지 않도록 `CODEX_POLLING_CONFLICT_STALE_SECONDS` 시간 기준을 추가했습니다.

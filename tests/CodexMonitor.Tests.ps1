@@ -10,6 +10,7 @@
         $script:previousStartAllowed = [Environment]::GetEnvironmentVariable("TELEGRAM_START_ALLOWED_CHAT_IDS", "Process")
         $script:previousChatId = [Environment]::GetEnvironmentVariable("TELEGRAM_CHAT_ID", "Process")
         $script:previousPersonalChatId = [Environment]::GetEnvironmentVariable("TELEGRAM_PERSONAL_CHAT_ID", "Process")
+        $script:previousTitle = [Environment]::GetEnvironmentVariable("CODEX_MONITOR_TITLE", "Process")
     }
 
     AfterEach {
@@ -18,6 +19,7 @@
         [Environment]::SetEnvironmentVariable("TELEGRAM_START_ALLOWED_CHAT_IDS", $script:previousStartAllowed, "Process")
         [Environment]::SetEnvironmentVariable("TELEGRAM_CHAT_ID", $script:previousChatId, "Process")
         [Environment]::SetEnvironmentVariable("TELEGRAM_PERSONAL_CHAT_ID", $script:previousPersonalChatId, "Process")
+        [Environment]::SetEnvironmentVariable("CODEX_MONITOR_TITLE", $script:previousTitle, "Process")
     }
 
     It "splits comma, semicolon, and whitespace separated chat IDs" {
@@ -57,6 +59,7 @@
         Get-CodexTelegramCommandType -Text "/o" | Should -Be "start"
         Get-CodexTelegramCommandType -Text "/codex_status" | Should -Be "status"
         Get-CodexTelegramCommandType -Text "/l 30" | Should -Be "logs"
+        Get-CodexTelegramCommandType -Text "codex status @codex_manager_bot" | Should -Be "status"
         Get-CodexTelegramCommandType -Text "코덱스 앱 켜줘" | Should -Be "start"
         Get-CodexTelegramCommandType -Text "codex 점검" | Should -Be "health"
         Get-CodexTelegramCommandType -Text "hello" | Should -Be "unknown"
@@ -65,8 +68,26 @@
     It "detects whether group messages explicitly target the bot" {
         Test-CodexTelegramMessageTargetsBot -Text "/s" -BotUsername "codex_manager_bot" | Should -BeTrue
         Test-CodexTelegramMessageTargetsBot -Text "/s@codex_manager_bot" -BotUsername "codex_manager_bot" | Should -BeTrue
+        Test-CodexTelegramMessageTargetsBot -Text "/s@Codex_Manager_Bot" -BotUsername "codex_manager_bot" | Should -BeTrue
+        Test-CodexTelegramMessageTargetsBot -Text "/s@other_bot" -BotUsername "codex_manager_bot" | Should -BeFalse
+        Test-CodexTelegramMessageTargetsBot -Text "/s@other_bot" -BotUsername "" | Should -BeFalse
         Test-CodexTelegramMessageTargetsBot -Text "codex status @codex_manager_bot" -BotUsername "codex_manager_bot" | Should -BeTrue
         Test-CodexTelegramMessageTargetsBot -Text "codex status" -BotUsername "codex_manager_bot" | Should -BeFalse
+    }
+
+    It "reads UTF-8 dotenv values consistently" {
+        $envFile = Join-Path $TestDrive "utf8.env"
+        Set-Content -LiteralPath $envFile -Encoding UTF8 -Value @(
+            "CODEX_MONITOR_TITLE=한글 제목",
+            "CODEX_DEVICE_NAME=테스트 PC"
+        )
+
+        $keys = Read-CodexDotEnvKeys -Path $envFile
+        Import-CodexDotEnv -Path $envFile
+
+        $keys["CODEX_MONITOR_TITLE"] | Should -Be "한글 제목"
+        Get-CodexMessageTitle | Should -Be "한글 제목"
+        Get-CodexDeviceName | Should -Be "테스트 PC"
     }
 
     It "detects Telegram getUpdates conflict text" {
@@ -120,6 +141,45 @@ Describe "Codex Telegram listener helpers" {
     BeforeAll {
         $script:repoRoot = Split-Path -Parent $PSScriptRoot
         . (Join-Path $script:repoRoot "codex-telegram-command-listener.ps1") -LoadOnly -DryRun
+    }
+
+    BeforeEach {
+        $script:MessageTitle = "Codex app monitor test"
+        $script:DeviceName = "TEST-PC"
+    }
+
+    It "keeps the status result message format stable" {
+        $message = New-ResultMessage -ResultLabel "상태 확인 결과" -Result @{
+            Badge = "OK"
+            Icon = "✅"
+            CurrentState = "실행 중"
+            ProcessCount = 1
+        }
+
+        $message | Should -Match "<b>Codex app monitor test</b>"
+        $message | Should -Match "<b>상태 확인 결과: ✅ OK</b>"
+        $message | Should -Match "대상: Codex App"
+        $message | Should -Match "PC: .+"
+        $message | Should -Match "현재 실행 상태: 실행 중"
+        $message | Should -Match "프로세스: 1개"
+        $message | Should -Match "Processed at: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
+        $message | Should -Not -Match "확인 필요"
+    }
+
+    It "keeps the warning result message format stable" {
+        $message = New-ResultMessage -ResultLabel "최종 확인 결과" -Result @{
+            Badge = "WARN"
+            Icon = "⚠️"
+            BeforeState = "미실행"
+            CurrentState = "미실행"
+            ProcessCount = 0
+        }
+
+        $message | Should -Match "<b>최종 확인 결과: ⚠️ WARN</b>"
+        $message | Should -Match "실행 전 상태: 미실행"
+        $message | Should -Match "현재 실행 상태: 미실행"
+        $message | Should -Match "프로세스: 0개"
+        $message | Should -Match "확인 필요: Codex 앱이 실행되지 않았습니다."
     }
 
     It "sends a dry-run result for the remote start flow" {
@@ -176,6 +236,46 @@ Describe "Codex Telegram listener helpers" {
         $update = [PSCustomObject]@{
             message = [PSCustomObject]@{
                 text = "codex status"
+                chat = [PSCustomObject]@{
+                    id = 111
+                    type = "group"
+                }
+            }
+        }
+
+        Handle-TelegramUpdate -Update $update
+
+        $script:sentMessages.Count | Should -Be 0
+        $script:listenerLogs -join "`n" | Should -Match "그룹 채팅의 일반 메시지"
+    }
+
+    It "ignores group commands addressed to another bot" {
+        $script:sentMessages = @()
+        $script:listenerLogs = @()
+        $script:BotUsername = "codex_manager_bot"
+
+        function Test-AllowedChatId {
+            param([Parameter(Mandatory = $true)][string]$ChatId)
+            return $true
+        }
+
+        function Send-TelegramMessage {
+            param(
+                [Parameter(Mandatory = $true)][string]$ChatId,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            $script:sentMessages += $Message
+        }
+
+        function Write-ListenerLog {
+            param([Parameter(Mandatory = $true)][string]$Message)
+            $script:listenerLogs += $Message
+        }
+
+        $update = [PSCustomObject]@{
+            message = [PSCustomObject]@{
+                text = "/s@other_bot"
                 chat = [PSCustomObject]@{
                     id = 111
                     type = "group"

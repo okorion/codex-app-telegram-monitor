@@ -51,7 +51,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
 | `/l 30` | `/codex_logs 30` | 지정한 줄 수만큼 최근 로그를 표시합니다. 허용 범위는 5-50줄입니다. |
 | `/m` | `/help` | 사용 가능한 명령 목록을 표시합니다. |
 
-개인 채팅에서는 자연어에 가까운 일부 메시지도 지원합니다. 예를 들어 `codex 상태`, `codex 실행`, `코덱스 앱 켜줘` 같은 메시지를 인식합니다. 그룹이나 supergroup에서는 일반 대화에 help가 나가지 않도록 `/` 명령 또는 bot mention이 있는 메시지에만 반응합니다.
+개인 채팅에서는 자연어에 가까운 일부 메시지도 지원합니다. 예를 들어 `codex 상태`, `codex 실행`, `코덱스 앱 켜줘` 같은 메시지를 인식합니다. 그룹이나 supergroup에서는 일반 대화에 help가 나가지 않도록 `/` 명령 또는 bot mention이 있는 메시지에만 반응합니다. `/s@other_bot`처럼 다른 봇을 명시한 명령은 무시합니다.
 
 ## GUI 설정 도구
 
@@ -85,7 +85,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipC
 | 원격 실행 | 허용된 Telegram 채팅에서 `/o` 또는 `/codex_on`으로 Codex App을 실행합니다. |
 | 상태 확인 | 실행 상태, 프로세스 수, 앱 버전, 예약 작업 상태, listener heartbeat, 최근 로그를 확인합니다. |
 | 모바일 단축 명령 | `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, `/m` 같은 한 글자 명령을 지원합니다. |
-| Watchdog | 5분마다 command listener 예약 작업이 실행 중인지 확인하고, 멈춰 있으면 다시 시작합니다. |
+| Watchdog | 5분마다 command listener 예약 작업과 heartbeat를 확인하고, 멈췄거나 heartbeat가 오래되면 다시 시작합니다. |
 | 로컬 보안 | 민감정보는 Git에서 제외된 `.env`에 저장하고, `.env` ACL 보호, 명령/실행 허용 채팅 분리, 로그 민감정보 redaction을 적용합니다. |
 | 여러 PC 사용 | PC별 표시 이름을 지원하며, long polling 특성상 active PC마다 별도 bot token 사용을 권장합니다. |
 
@@ -103,7 +103,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipC
 
 ```text
 09:00 daily task -> Codex App 확인 -> 필요 시 실행 -> Telegram 결과 전송
-5 min watchdog  -> listener task 확인 -> 필요 시 listener task 재시작
+5 min watchdog  -> listener task/heartbeat 확인 -> 필요 시 listener task 재시작
 ```
 
 ## 요구 사항
@@ -266,7 +266,7 @@ PC B -> Telegram bot B -> CODEX_DEVICE_NAME=Office-PC
 \Codex\Codex Telegram Command Listener Watchdog
 ```
 
-command listener는 사용자 로그온 시 시작되고, Windows 사용자 세션이 활성 상태일 때 Telegram polling을 유지합니다. watchdog은 5분마다 listener task가 실행 중인지 확인하고, 멈춰 있으면 다시 시작합니다.
+command listener는 사용자 로그온 시 시작되고, Windows 사용자 세션이 활성 상태일 때 Telegram polling을 유지합니다. watchdog은 5분마다 listener task와 heartbeat를 확인하고, task가 멈췄거나 heartbeat가 오래되면 다시 시작합니다.
 
 ## 제거
 
@@ -305,7 +305,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 
 ## 릴리스
 
-GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP을 게시합니다. Release notes는 `CHANGELOG.md`의 해당 version 섹션만 사용합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
+GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP과 SHA256 checksum을 게시합니다. Release notes는 `CHANGELOG.md`의 해당 version 섹션만 사용합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
 
 ## 검증
 

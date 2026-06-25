@@ -51,7 +51,7 @@ Send these commands in an authorized bot chat:
 | `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
 | `/m` | `/help` | Show the command list. |
 
-In private chats, some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents. In groups and supergroups, the listener responds only to `/` commands or messages that mention the bot, so ordinary group conversation does not trigger help replies.
+In private chats, some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents. In groups and supergroups, the listener responds only to `/` commands or messages that mention the bot, so ordinary group conversation does not trigger help replies. Commands addressed to another bot, such as `/s@other_bot`, are ignored.
 
 ## GUI Settings Tool
 
@@ -85,7 +85,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipC
 | Remote control | Lets an authorized Telegram chat start Codex App with `/o` or `/codex_on`. |
 | Status checks | Reports running status, process count, app version, scheduler state, listener heartbeat, and recent logs. |
 | Mobile shortcuts | Registers one-letter Telegram commands, such as `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, and `/m`. |
-| Watchdog | Checks every 5 minutes whether the command listener task is running and starts it again if needed. |
+| Watchdog | Checks every 5 minutes whether the command listener task is running and whether its heartbeat is fresh, then restarts it if needed. |
 | Local security | Keeps secrets in ignored `.env`, protects `.env` ACLs, separates command/start-allowed chats, and redacts sensitive log content. |
 | Multi-PC use | Supports per-PC display names and recommends one bot token per active PC because Telegram long polling is token-wide. |
 
@@ -103,7 +103,7 @@ Separate scheduled tasks handle the daily 09:00 monitor and the listener watchdo
 
 ```text
 09:00 daily task -> check Codex App -> start if needed -> send Telegram result
-5 min watchdog  -> check listener task -> restart listener task if needed
+5 min watchdog  -> check listener task/heartbeat -> restart listener task if needed
 ```
 
 ## Requirements
@@ -264,7 +264,7 @@ The installer scripts create these Windows Task Scheduler entries:
 \Codex\Codex Telegram Command Listener Watchdog
 ```
 
-The command listener starts at user logon and keeps polling Telegram while the Windows user session is active. The watchdog checks every 5 minutes and starts the listener task again if it is not running.
+The command listener starts at user logon and keeps polling Telegram while the Windows user session is active. The watchdog checks the listener task and heartbeat every 5 minutes, then restarts the task if it is stopped or stale.
 
 ## Uninstall
 
@@ -303,7 +303,7 @@ For a fuller security model, see [SECURITY.en.md](SECURITY.en.md).
 
 ## Releases
 
-GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. Release notes use only the matching version section from `CHANGELOG.md`. See [RELEASE.en.md](RELEASE.en.md).
+GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive with a SHA256 checksum. Release notes use only the matching version section from `CHANGELOG.md`. See [RELEASE.en.md](RELEASE.en.md).
 
 ## Validation
 

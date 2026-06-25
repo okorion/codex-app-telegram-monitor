@@ -13,7 +13,7 @@ function Import-CodexDotEnv {
         throw "환경 파일을 찾을 수 없습니다: $Path"
     }
 
-    foreach ($line in Get-Content -LiteralPath $Path) {
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
         if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
             continue
         }
@@ -38,7 +38,7 @@ function Read-CodexDotEnvKeys {
         return $result
     }
 
-    foreach ($line in Get-Content -LiteralPath $Path) {
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding UTF8) {
         if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
             $result[$matches[1]] = $matches[2].Trim()
         }
@@ -138,8 +138,10 @@ function Get-CodexTelegramCommandType {
     }
 
     $trimmed = $Text.Trim()
+    $trimmedWithoutMention = $trimmed -replace '(?i)\s+@[a-z0-9_]+$', ''
     $lower = $trimmed.ToLowerInvariant()
     $lower = $lower -replace '^/([a-z0-9_]+)@[a-z0-9_]+', '/$1'
+    $lowerWithoutMention = $lower -replace '\s+@[a-z0-9_]+$', ''
 
     if ($lower -match '^/(start|help|m)$' -or
         $lower -match '^/(start|help|m)@[a-z0-9_]+$') {
@@ -148,27 +150,27 @@ function Get-CodexTelegramCommandType {
 
     if ($lower -match '^/(codex_on|codex_start|startcodex|o)$' -or
         $lower -match '^/(codex_on|codex_start|startcodex|o)@[a-z0-9_]+$' -or
-        $lower -in @("codex on", "codex start", "codex run", "codex 실행") -or
-        $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(켜|켜기|실행|시작)(줘|주세요|해줘|해주세요)?$') {
+        $lowerWithoutMention -in @("codex on", "codex start", "codex run", "codex 실행") -or
+        $trimmedWithoutMention -match '^(코덱스|Codex|codex)( 앱)?\s*(켜|켜기|실행|시작)(줘|주세요|해줘|해주세요)?$') {
         return "start"
     }
 
     if ($lower -match '^/(codex_status|status|s)$' -or
         $lower -match '^/(codex_status|status|s)@[a-z0-9_]+$' -or
-        $lower -in @("codex status", "codex 상태") -or
-        $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(상태|확인|체크)$') {
+        $lowerWithoutMention -in @("codex status", "codex 상태") -or
+        $trimmedWithoutMention -match '^(코덱스|Codex|codex)( 앱)?\s*(상태|확인|체크)$') {
         return "status"
     }
 
     if ($lower -match '^/(codex_health|health|h)$' -or
         $lower -match '^/(codex_health|health|h)@[a-z0-9_]+$' -or
-        $lower -in @("codex health", "codex 헬스", "codex 점검")) {
+        $lowerWithoutMention -in @("codex health", "codex 헬스", "codex 점검")) {
         return "health"
     }
 
     if ($lower -match '^/(codex_version|version|v)$' -or
         $lower -match '^/(codex_version|version|v)@[a-z0-9_]+$' -or
-        $lower -in @("codex version", "codex 버전")) {
+        $lowerWithoutMention -in @("codex version", "codex 버전")) {
         return "version"
     }
 
@@ -196,12 +198,26 @@ function Test-CodexTelegramMessageTargetsBot {
     }
 
     $trimmed = $Text.Trim()
-    if ($trimmed.StartsWith("/")) {
+    $botUsernameNormalized = ""
+    if (![string]::IsNullOrWhiteSpace($BotUsername)) {
+        $botUsernameNormalized = $BotUsername.TrimStart("@")
+    }
+
+    if ($trimmed -match '^/[A-Za-z0-9_]+(?:@(?<username>[A-Za-z0-9_]+))?(?:\s|$)') {
+        $targetUsername = [string]$matches.username
+        if (![string]::IsNullOrWhiteSpace($targetUsername)) {
+            if ([string]::IsNullOrWhiteSpace($botUsernameNormalized)) {
+                return $false
+            }
+
+            return [string]::Equals($targetUsername, $botUsernameNormalized, [StringComparison]::OrdinalIgnoreCase)
+        }
+
         return $true
     }
 
-    if (![string]::IsNullOrWhiteSpace($BotUsername)) {
-        $escapedUsername = [regex]::Escape($BotUsername.TrimStart("@"))
+    if (![string]::IsNullOrWhiteSpace($botUsernameNormalized)) {
+        $escapedUsername = [regex]::Escape($botUsernameNormalized)
         return $trimmed -match "(?i)(^|\s)@$escapedUsername(\b|$)"
     }
 
@@ -319,7 +335,7 @@ function Get-CodexToolVersion {
 
     $versionFile = Join-Path $Root "VERSION"
     if (Test-Path -LiteralPath $versionFile) {
-        $version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+        $version = (Get-Content -LiteralPath $versionFile -Raw -Encoding UTF8).Trim()
         if (![string]::IsNullOrWhiteSpace($version)) {
             return $version
         }
@@ -700,7 +716,7 @@ function Read-CodexListenerHeartbeat {
         return $null
     }
 
-    $raw = (Get-Content -LiteralPath $Path -Raw).Trim()
+    $raw = (Get-Content -LiteralPath $Path -Raw -Encoding ASCII).Trim()
     if ([string]::IsNullOrWhiteSpace($raw)) {
         return $null
     }

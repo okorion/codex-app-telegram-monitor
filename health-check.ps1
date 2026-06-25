@@ -93,7 +93,7 @@ $pollingConflictStaleSeconds = 3600
 if (![string]::IsNullOrWhiteSpace($envValues["CODEX_POLLING_CONFLICT_STALE_SECONDS"])) {
     [int]::TryParse($envValues["CODEX_POLLING_CONFLICT_STALE_SECONDS"], [ref]$pollingConflictStaleSeconds) | Out-Null
 }
-$recentLogLines = if (Test-Path -LiteralPath $logFile) { @(Get-Content -LiteralPath $logFile -Tail 100) } else { @() }
+$recentLogLines = if (Test-Path -LiteralPath $logFile) { @(Get-Content -LiteralPath $logFile -Tail 100 -Encoding UTF8) } else { @() }
 $pollingConflictDetected = Test-CodexRecentTelegramConflict -Lines $recentLogLines -StaleSeconds $pollingConflictStaleSeconds
 $deviceName = if (![string]::IsNullOrWhiteSpace($envValues["CODEX_DEVICE_NAME"]) -and $envValues["CODEX_DEVICE_NAME"] -ne "auto") {
     $envValues["CODEX_DEVICE_NAME"]

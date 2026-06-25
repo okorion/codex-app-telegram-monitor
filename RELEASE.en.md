@@ -31,10 +31,12 @@ git ls-files .env logs state
 5. Create a tag matching `VERSION`, for example:
 
 ```powershell
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
-6. The GitHub Release workflow validates `VERSION`, creates a tracked-file ZIP with `git archive`, and publishes only the matching `CHANGELOG.md` version section as release notes.
+6. The GitHub Release workflow validates `VERSION`, creates a tracked-file ZIP and SHA256 checksum with `git archive`, and publishes only the matching `CHANGELOG.md` version section as release notes.
+
+If needed, manually run the `릴리스` workflow in GitHub Actions and enter a `vX.Y.Z` tag to rerun the same publishing flow.
 
 Do not include `.env`, `logs/`, or `state/` in release artifacts.

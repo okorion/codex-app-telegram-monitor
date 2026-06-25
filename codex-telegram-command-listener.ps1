@@ -295,7 +295,7 @@ function Test-RecentPollingConflict {
         return $false
     }
 
-    $recentLines = @(Get-Content -LiteralPath $LogFile -Tail 100 -ErrorAction SilentlyContinue)
+    $recentLines = @(Get-Content -LiteralPath $LogFile -Tail 100 -Encoding UTF8 -ErrorAction SilentlyContinue)
     return Test-CodexRecentTelegramConflict `
         -Lines $recentLines `
         -StaleSeconds (Get-CodexPollingConflictStaleSeconds)
@@ -463,7 +463,7 @@ function New-LogsMessage {
         ) -join "`n"
     }
 
-    $logText = ((Get-Content -LiteralPath $LogFile -Tail $Count | ForEach-Object { ConvertTo-RedactedLogLine -Line $_ }) -join "`n")
+    $logText = ((Get-Content -LiteralPath $LogFile -Tail $Count -Encoding UTF8 | ForEach-Object { ConvertTo-RedactedLogLine -Line $_ }) -join "`n")
     if ($logText.Length -gt 3000) {
         $logText = $logText.Substring($logText.Length - 3000)
     }
@@ -602,7 +602,7 @@ function Read-Offset {
         return $null
     }
 
-    $value = (Get-Content -LiteralPath $OffsetFile -Raw).Trim()
+    $value = (Get-Content -LiteralPath $OffsetFile -Raw -Encoding ASCII).Trim()
     if ([string]::IsNullOrWhiteSpace($value)) {
         return $null
     }
