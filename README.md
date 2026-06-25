@@ -2,6 +2,8 @@
 
 Windows PowerShell scripts for managing the Codex desktop app through a dedicated Telegram bot.
 
+![Codex App Telegram Monitor overview](assets/codex-app-telegram-monitor-overview.png)
+
 The tool can:
 
 - Send a daily Codex App status notification.
