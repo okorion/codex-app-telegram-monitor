@@ -19,7 +19,7 @@
     <text x="118" y="246" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#111827">PC: DESKTOP-NAME</text>
     <text x="118" y="276" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#111827">현재 실행 상태: 실행 중</text>
     <text x="118" y="306" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#111827">프로세스: 1개</text>
-    <text x="118" y="360" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="#6b7280">Processed at: 2026-06-25 12:00:00</text>
+    <text x="118" y="326" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="#6b7280">Processed at: 2026-06-25 12:00:00</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="508" y="104" width="360" height="312" rx="22" fill="#ffffff"/>
@@ -31,6 +31,6 @@
     <text x="534" y="328" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#111827">현재 실행 상태: 실행 확인 중</text>
     <line x1="534" y1="356" x2="842" y2="356" stroke="#e5e7eb" stroke-width="2"/>
     <text x="534" y="392" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">최종 확인 결과: ✅ OK</text>
-    <text x="534" y="432" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="#6b7280">Processed at: 2026-06-25 12:00:08</text>
+    <text x="534" y="408" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="#6b7280">Processed at: 2026-06-25 12:00:08</text>
   </g>
 </svg>
