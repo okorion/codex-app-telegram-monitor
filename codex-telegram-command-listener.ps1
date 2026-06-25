@@ -87,6 +87,12 @@ function Test-AllowedChatId {
     return Test-CodexChatIdAllowed -ChatId $ChatId -AllowedChatIds @(Get-CodexCommandAllowedChatIds)
 }
 
+function Test-StartAllowedChatId {
+    param([Parameter(Mandatory = $true)][string]$ChatId)
+
+    return Test-CodexChatIdAllowed -ChatId $ChatId -AllowedChatIds @(Get-CodexStartAllowedChatIds)
+}
+
 function Send-TelegramMessage {
     param(
         [Parameter(Mandatory = $true)][string]$ChatId,
@@ -285,6 +291,7 @@ function New-HealthMessage {
     $tokenPresent = ![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "Process"))
     $allowedChatIds = @(Get-CodexAllowedChatIds)
     $commandAllowedChatIds = @(Get-CodexCommandAllowedChatIds)
+    $startAllowedChatIds = @(Get-CodexStartAllowedChatIds)
     $monitorTask = Get-TaskHealth -TaskName $MonitorTaskName
     $listenerTask = Get-TaskHealth -TaskName $ListenerTaskName
     $watchdogTask = Get-TaskHealth -TaskName $WatchdogTaskName
@@ -298,6 +305,7 @@ function New-HealthMessage {
     $overallOk = $tokenPresent -and
         $allowedChatIds.Count -gt 0 -and
         $commandAllowedChatIds.Count -gt 0 -and
+        $startAllowedChatIds.Count -gt 0 -and
         $botReachable -and
         $envProtected -and
         $monitorTask.Exists -and
@@ -319,6 +327,7 @@ function New-HealthMessage {
         "Bot API: $(ConvertTo-StatusIcon -Value $botReachable) $(if ($botReachable) { "Reachable" } else { "Unavailable" })",
         "Notification chats: $($allowedChatIds.Count)개",
         "Command chats: $($commandAllowedChatIds.Count)개",
+        "Start chats: $($startAllowedChatIds.Count)개",
         "Env ACL: $(ConvertTo-StatusIcon -Value $envProtected) $(if ($envProtected) { "Protected" } else { "Needs protection" })",
         (ConvertTo-TaskSummary -Label "Daily monitor" -Task $monitorTask),
         (ConvertTo-TaskSummary -Label "Command listener" -Task $listenerTask),
@@ -326,6 +335,23 @@ function New-HealthMessage {
         "Offset file: $(ConvertTo-StatusIcon -Value $offsetFileExists) $(if ($offsetFileExists) { "Present" } else { "Missing" })",
         (ConvertTo-HeartbeatSummary -Heartbeat $heartbeat),
         "Log file: $(ConvertTo-StatusIcon -Value $logFileExists) $(if ($logFileExists) { "$logFileSize bytes" } else { "Missing" })",
+        "",
+        "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+    ) -join "`n"
+}
+
+function New-StartDeniedMessage {
+    $now = Get-Date
+
+    return @(
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
+        "",
+        "<b>원격 실행 권한: ⚠️ DENIED</b>",
+        "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
+        "",
+        "안내: 이 채팅은 Codex App 실행 권한이 없습니다.",
+        "설정: TELEGRAM_START_ALLOWED_CHAT_IDS",
         "",
         "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
     ) -join "`n"
@@ -658,6 +684,12 @@ function Handle-TelegramUpdate {
             Send-TelegramMessage -ChatId $chatId -Message (New-HelpMessage)
         }
         "start" {
+            if (!(Test-StartAllowedChatId -ChatId $chatId)) {
+                Write-ListenerLog "Denied Codex start request from command-authorized chat without start permission."
+                Send-TelegramMessage -ChatId $chatId -Message (New-StartDeniedMessage)
+                return
+            }
+
             Invoke-CodexRemoteStart -ChatId $chatId
         }
         "status" {

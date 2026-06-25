@@ -39,6 +39,21 @@ jobs:
             throw "Forbidden tracked files:`n$($forbidden -join "`n")"
           }
 
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $pester = Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]"5.0" } | Sort-Object Version -Descending | Select-Object -First 1
+          if (!$pester) {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            if (!(Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser
+            }
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+            Install-Module Pester -Force -Scope CurrentUser -SkipPublisherCheck -Confirm:$false
+          }
+          Import-Module Pester -MinimumVersion 5.0
+          Invoke-Pester -Path .\tests -CI
+
       - name: Secret pattern scan
         shell: pwsh
         run: |
@@ -46,7 +61,7 @@ jobs:
             'gho_[A-Za-z0-9_]+',
             'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}',
             '[0-9]{8,}:[A-Za-z0-9_-]{20,}',
-            'TELEGRAM_(CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS)\s*=\s*-?[0-9]{5,}',
+            'TELEGRAM_(CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS|START_ALLOWED_CHAT_IDS)\s*=\s*-?[0-9]{5,}',
             'C:\\Users\\[^\\]+\\Documents\\Codex'
           )
           $files = git ls-files

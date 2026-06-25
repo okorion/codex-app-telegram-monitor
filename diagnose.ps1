@@ -1,6 +1,7 @@
 ﻿param(
     [string]$EnvFile = (Join-Path $PSScriptRoot ".env"),
-    [switch]$SupportBundle
+    [switch]$SupportBundle,
+    [switch]$Json
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,15 +74,14 @@ function Format-DiagnosticRows {
     return $lines
 }
 
-function Get-RedactedEnvSummary {
-    param([hashtable]$EnvValues)
-
-    $keys = @(
+function Get-RedactedEnvKeys {
+    return @(
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_CHAT_ID",
         "TELEGRAM_PERSONAL_CHAT_ID",
         "TELEGRAM_ALLOWED_CHAT_IDS",
         "TELEGRAM_COMMAND_ALLOWED_CHAT_IDS",
+        "TELEGRAM_START_ALLOWED_CHAT_IDS",
         "CODEX_MONITOR_TITLE",
         "CODEX_DEVICE_NAME",
         "CODEX_APP_USER_MODEL_ID",
@@ -90,8 +90,12 @@ function Get-RedactedEnvSummary {
         "CODEX_LOG_KEEP_FILES",
         "CODEX_HEARTBEAT_STALE_SECONDS"
     )
+}
 
-    foreach ($key in $keys) {
+function Get-RedactedEnvSummary {
+    param([hashtable]$EnvValues)
+
+    foreach ($key in (Get-RedactedEnvKeys)) {
         $value = if ($EnvValues.ContainsKey($key)) { $EnvValues[$key] } else { "" }
         if ($key -like "TELEGRAM_*") {
             if ([string]::IsNullOrWhiteSpace($value)) {
@@ -100,12 +104,55 @@ function Get-RedactedEnvSummary {
                 "$key=<redacted>"
             }
         } else {
-            "$key=$value"
+            "$key=$(ConvertTo-CodexRedactedText -Text $value)"
         }
     }
 }
 
+function Get-RedactedEnvObject {
+    param([hashtable]$EnvValues)
+
+    $result = [ordered]@{}
+    foreach ($key in (Get-RedactedEnvKeys)) {
+        $value = if ($EnvValues.ContainsKey($key)) { $EnvValues[$key] } else { "" }
+        if ($key -like "TELEGRAM_*") {
+            $result[$key] = if ([string]::IsNullOrWhiteSpace($value)) { "<missing>" } else { "<redacted>" }
+        } else {
+            $result[$key] = ConvertTo-CodexRedactedText -Text $value
+        }
+    }
+
+    return $result
+}
+
+function Get-ConfiguredAllowedChatIds {
+    param(
+        [hashtable]$EnvValues,
+        [Parameter(Mandatory = $true)][string]$PrimaryKey,
+        [AllowNull()][string[]]$Fallback = @()
+    )
+
+    if (![string]::IsNullOrWhiteSpace($EnvValues[$PrimaryKey])) {
+        return Split-CodexChatIds -Value $EnvValues[$PrimaryKey]
+    }
+
+    if ($Fallback.Count -gt 0) {
+        return @($Fallback | Select-Object -Unique)
+    }
+
+    $chatIds = @()
+    if (![string]::IsNullOrWhiteSpace($EnvValues["TELEGRAM_PERSONAL_CHAT_ID"])) {
+        $chatIds += $EnvValues["TELEGRAM_PERSONAL_CHAT_ID"]
+    }
+    if (![string]::IsNullOrWhiteSpace($EnvValues["TELEGRAM_CHAT_ID"])) {
+        $chatIds += $EnvValues["TELEGRAM_CHAT_ID"]
+    }
+
+    return @($chatIds | Select-Object -Unique)
+}
+
 $toolVersion = Get-CodexToolVersion -Root $PSScriptRoot
+$generatedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 $envExists = Test-Path -LiteralPath $EnvFile
 $envValues = Read-CodexDotEnvKeys -Path $EnvFile
 if ($envExists) {
@@ -114,24 +161,9 @@ if ($envExists) {
 
 $tokenPresent = ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_BOT_TOKEN"])
 $chatPresent = ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_CHAT_ID"]) -or ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_PERSONAL_CHAT_ID"])
-if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_ALLOWED_CHAT_IDS"])) {
-    $allowedChatIds = Split-CodexChatIds -Value $envValues["TELEGRAM_ALLOWED_CHAT_IDS"]
-} else {
-    $fallbackChatIds = @()
-    if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_PERSONAL_CHAT_ID"])) {
-        $fallbackChatIds += $envValues["TELEGRAM_PERSONAL_CHAT_ID"]
-    }
-    if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_CHAT_ID"])) {
-        $fallbackChatIds += $envValues["TELEGRAM_CHAT_ID"]
-    }
-    $allowedChatIds = @($fallbackChatIds | Select-Object -Unique)
-}
-
-if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_COMMAND_ALLOWED_CHAT_IDS"])) {
-    $commandAllowedChatIds = Split-CodexChatIds -Value $envValues["TELEGRAM_COMMAND_ALLOWED_CHAT_IDS"]
-} else {
-    $commandAllowedChatIds = $allowedChatIds
-}
+$allowedChatIds = Get-ConfiguredAllowedChatIds -EnvValues $envValues -PrimaryKey "TELEGRAM_ALLOWED_CHAT_IDS"
+$commandAllowedChatIds = Get-ConfiguredAllowedChatIds -EnvValues $envValues -PrimaryKey "TELEGRAM_COMMAND_ALLOWED_CHAT_IDS" -Fallback $allowedChatIds
+$startAllowedChatIds = Get-ConfiguredAllowedChatIds -EnvValues $envValues -PrimaryKey "TELEGRAM_START_ALLOWED_CHAT_IDS" -Fallback $commandAllowedChatIds
 $botReachable = if ($tokenPresent) { Test-CodexTelegramBot -Token $envValues["TELEGRAM_BOT_TOKEN"] } else { $false }
 $envProtected = Test-CodexEnvFileProtected -Path $EnvFile
 
@@ -149,9 +181,9 @@ $rows += New-DiagnosticRow -Name ".env ACL" -Status $(if ($envProtected) { "OK" 
 $rows += New-DiagnosticRow -Name "Telegram token" -Status $(if ($tokenPresent) { "OK" } else { "FAIL" }) -Detail $(if ($tokenPresent) { "Present" } else { "Missing" }) -Fix $(if ($tokenPresent) { "" } else { "Run configure-codex-telegram.ps1." })
 $rows += New-DiagnosticRow -Name "Telegram chat" -Status $(if ($chatPresent) { "OK" } else { "FAIL" }) -Detail $(if ($chatPresent) { "Configured" } else { "Missing" }) -Fix $(if ($chatPresent) { "" } else { "Send /start to the bot and rerun configure-codex-telegram.ps1." })
 $rows += New-DiagnosticRow -Name "Telegram API" -Status $(if ($botReachable) { "OK" } else { "FAIL" }) -Detail $(if ($botReachable) { "Reachable" } else { "Unavailable" }) -Fix $(if ($botReachable) { "" } else { "Check bot token and network access." })
-$allowedChatStatus = if ($allowedChatIds.Count -gt 0 -and $commandAllowedChatIds.Count -gt 0) { "OK" } else { "WARN" }
-$allowedChatFix = if ($allowedChatStatus -eq "OK") { "" } else { "Set TELEGRAM_ALLOWED_CHAT_IDS and TELEGRAM_COMMAND_ALLOWED_CHAT_IDS when using groups or multiple chats." }
-$rows += New-DiagnosticRow -Name "Allowed chats" -Status $allowedChatStatus -Detail "Notification=$($allowedChatIds.Count); Command=$($commandAllowedChatIds.Count)" -Fix $allowedChatFix
+$allowedChatStatus = if ($allowedChatIds.Count -gt 0 -and $commandAllowedChatIds.Count -gt 0 -and $startAllowedChatIds.Count -gt 0) { "OK" } else { "WARN" }
+$allowedChatFix = if ($allowedChatStatus -eq "OK") { "" } else { "Set TELEGRAM_ALLOWED_CHAT_IDS, TELEGRAM_COMMAND_ALLOWED_CHAT_IDS, and TELEGRAM_START_ALLOWED_CHAT_IDS when using groups or multiple chats." }
+$rows += New-DiagnosticRow -Name "Allowed chats" -Status $allowedChatStatus -Detail "Notification=$($allowedChatIds.Count); Command=$($commandAllowedChatIds.Count); Start=$($startAllowedChatIds.Count)" -Fix $allowedChatFix
 $rows += Get-TaskDiagnostic -TaskName $monitorTaskName
 $rows += Get-TaskDiagnostic -TaskName $listenerTaskName
 $rows += Get-TaskDiagnostic -TaskName $watchdogTaskName
@@ -165,9 +197,54 @@ $failed = @($rows | Where-Object { $_.Status -eq "FAIL" }).Count
 $warned = @($rows | Where-Object { $_.Status -eq "WARN" }).Count
 $overall = if ($failed -gt 0) { "FAIL" } elseif ($warned -gt 0) { "WARN" } else { "OK" }
 
+if ($Json) {
+    $jsonObject = [ordered]@{
+        generatedAt = $generatedAt
+        toolVersion = $toolVersion
+        overall = $overall
+        rows = @($rows | ForEach-Object {
+            [ordered]@{
+                name = $_.Name
+                status = $_.Status
+                detail = ConvertTo-CodexRedactedText -Text $_.Detail
+                fix = ConvertTo-CodexRedactedText -Text $_.Fix
+            }
+        })
+        environment = Get-RedactedEnvObject -EnvValues $envValues
+        codexDetection = [ordered]@{
+            startAppCount = $detection.StartAppCount
+            startApps = @($detection.StartApps | ForEach-Object { [ordered]@{ name = $_.Name; appId = $_.AppID } })
+            appxPackageCount = $detection.AppxPackageCount
+            appxPackages = @($detection.AppxPackages | ForEach-Object { [ordered]@{ name = $_.Name; version = [string]$_.Version; packageFullName = $_.PackageFullName } })
+            codexProcessCount = $detection.CodexProcessCount
+            matchingProcessCount = $detection.MatchingProcessCount
+            processPathPattern = ConvertTo-CodexRedactedText -Text $settings.ProcessPathPattern
+            processes = @($detection.Processes | ForEach-Object { [ordered]@{ id = $_.Id; path = ConvertTo-CodexRedactedText -Text $_.Path } })
+        }
+        files = [ordered]@{
+            envFileExists = $envExists
+            envFileAclProtected = $envProtected
+            listenerLogExists = $logExists
+            listenerLogSizeBytes = $logSize
+            recentListenerLogs = $lastLogLines
+        }
+        system = [ordered]@{
+            powerShell = [string]$PSVersionTable.PSVersion
+            os = [Environment]::OSVersion.VersionString
+            computerName = $env:COMPUTERNAME
+        }
+    }
+
+    $jsonObject | ConvertTo-Json -Depth 8
+    if ($overall -eq "FAIL") {
+        exit 2
+    }
+    exit 0
+}
+
 $output = @(
     "Codex App Telegram Monitor diagnostics",
-    "Generated at: $((Get-Date).ToString("yyyy-MM-dd HH:mm:ss"))",
+    "Generated at: $generatedAt",
     "Tool version: $toolVersion",
     "Overall: $overall",
     ""

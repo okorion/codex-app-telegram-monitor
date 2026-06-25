@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate version tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath .\VERSION -Raw).Trim()
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ($version -ne $tagVersion) {
+            throw "VERSION ($version) does not match tag ($env:GITHUB_REF_NAME)."
+          }
+          "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Create release archive
+        shell: pwsh
+        run: |
+          $archive = "codex-app-telegram-monitor-$env:PACKAGE_VERSION.zip"
+          git archive --format zip --output $archive HEAD
+          if (!(Test-Path -LiteralPath $archive)) {
+            throw "Release archive was not created."
+          }
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $archive = "codex-app-telegram-monitor-$env:PACKAGE_VERSION.zip"
+          gh release create $env:GITHUB_REF_NAME $archive --title $env:GITHUB_REF_NAME --notes-file CHANGELOG.md

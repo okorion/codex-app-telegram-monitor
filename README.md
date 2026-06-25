@@ -26,7 +26,7 @@ It uses Telegram long polling. No inbound network port or webhook server is requ
 | Status checks | Reports running status, process count, app version, scheduler state, listener heartbeat, and recent logs. |
 | Mobile shortcuts | Registers one-letter Telegram commands, such as `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, and `/m`. |
 | Watchdog | Checks every 5 minutes whether the command listener task is running and starts it again if needed. |
-| Local security | Keeps secrets in ignored `.env`, protects `.env` ACLs, separates command-allowed chats, and redacts sensitive log content. |
+| Local security | Keeps secrets in ignored `.env`, protects `.env` ACLs, separates command/start-allowed chats, and redacts sensitive log content. |
 | Multi-PC use | Supports per-PC display names and documents the one-bot-token-per-active-PC long-polling limitation. |
 
 ## How It Works
@@ -88,6 +88,12 @@ Configure Telegram:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram.ps1
 ```
 
+Optional GUI configuration:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram-gui.ps1
+```
+
 Send a test Telegram message:
 
 ```powershell
@@ -135,24 +141,29 @@ Run a support-oriented diagnostic report:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -Json
 ```
 
-Use `-SupportBundle` when opening a GitHub issue. The output redacts Telegram tokens, chat IDs, and common local user paths.
+Use `-SupportBundle` when opening a GitHub issue. Use `-Json` when another tool should parse the diagnostic result. Both outputs redact Telegram tokens, chat IDs, and common local user paths.
 
 ## Updating
 
 Update an existing clone:
 
 ```powershell
-git pull
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update.ps1
 ```
 
-If the command listener was already installed, the installer refreshes the scheduled tasks and keeps the existing `.env`.
+`update.ps1` pulls the latest repository changes, keeps the existing `.env`, refreshes scheduled tasks, restarts the listener task when installed, and runs diagnostics. For a manual update, run:
+
+```powershell
+git pull
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure -SkipTelegramTest
+```
 
 ## Releases
 
-GitHub Releases can be used for downloadable ZIP packages. This repository currently documents the release flow, but publishing an actual release is a separate maintainer action. See [RELEASE.md](RELEASE.md).
+GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. See [RELEASE.md](RELEASE.md).
 
 ## Telegram Commands
 
@@ -219,6 +230,8 @@ Short aliases:
 
 ## Example Telegram Messages
 
+![Telegram message examples](assets/telegram-message-examples.svg)
+
 Status OK:
 
 ```text
@@ -262,6 +275,7 @@ TELEGRAM_CHAT_ID=
 TELEGRAM_PERSONAL_CHAT_ID=
 TELEGRAM_ALLOWED_CHAT_IDS=
 TELEGRAM_COMMAND_ALLOWED_CHAT_IDS=
+TELEGRAM_START_ALLOWED_CHAT_IDS=
 CODEX_MONITOR_TITLE=Codex app monitor test
 CODEX_DEVICE_NAME=auto
 CODEX_APP_USER_MODEL_ID=auto
@@ -274,6 +288,8 @@ CODEX_HEARTBEAT_STALE_SECONDS=120
 `TELEGRAM_ALLOWED_CHAT_IDS` accepts comma, semicolon, or whitespace separated chat IDs. When it is empty, the listener falls back to `TELEGRAM_PERSONAL_CHAT_ID` and `TELEGRAM_CHAT_ID`.
 
 `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS` controls which chats may run commands. When it is empty, it falls back to `TELEGRAM_ALLOWED_CHAT_IDS`.
+
+`TELEGRAM_START_ALLOWED_CHAT_IDS` controls which command-authorized chats may start Codex App with `/o` or `/codex_on`. When it is empty, it falls back to `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`.
 
 `CODEX_DEVICE_NAME` appears in Telegram messages. Use a short friendly name when you run the monitor on more than one PC.
 
@@ -291,6 +307,13 @@ Telegram `getUpdates` long polling is best used with one active PC per bot token
 
 Set a distinct `CODEX_DEVICE_NAME` on each PC so Telegram messages clearly show which computer handled the command.
 
+Recommended multi-PC setup:
+
+```text
+PC A -> Telegram bot A -> CODEX_DEVICE_NAME=Home-PC
+PC B -> Telegram bot B -> CODEX_DEVICE_NAME=Office-PC
+```
+
 ## Scheduled Tasks
 
 The installer scripts create these Windows Task Scheduler entries:
@@ -307,7 +330,13 @@ These scripts cannot start GUI apps when the PC is powered off, asleep, or not l
 
 ## Uninstall
 
-Remove the daily monitor task:
+Remove scheduled tasks while keeping `.env`, logs, and state:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1
+```
+
+Remove the daily monitor task only:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_task.ps1
@@ -319,12 +348,19 @@ Remove the Telegram command listener and watchdog tasks:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_listener_task.ps1
 ```
 
+Delete local configuration and runtime files only when you intentionally want a full cleanup:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1 -RemoveEnv -RemoveLogs -RemoveState
+```
+
 ## Security Notes
 
 - Do not commit `.env`.
 - Treat `TELEGRAM_BOT_TOKEN` and chat IDs as sensitive.
 - Use a dedicated Telegram bot for this automation.
 - Prefer one dedicated bot token per PC.
+- Set `TELEGRAM_START_ALLOWED_CHAT_IDS` more narrowly than command chats if some chats should only inspect status.
 - `protect_env_file.ps1` restricts `.env` ACL inheritance and grants access to the current user, SYSTEM, and local Administrators.
 - Rotate the bot token in `@BotFather` if it is ever exposed.
 - The listener uses Telegram long polling and does not expose a local HTTP server.
@@ -356,4 +392,18 @@ foreach ($script in $scripts) {
     throw "Parse failed: $($script.Name)"
   }
 }
+```
+
+Run the dry-run checks:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\telegram-test.ps1 -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\ensure-codex-app-with-telegram.ps1 -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register_bot_commands.ps1 -DryRun
+```
+
+Run Pester tests when Pester 5 is available:
+
+```powershell
+Invoke-Pester -Path .\tests
 ```

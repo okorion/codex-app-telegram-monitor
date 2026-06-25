@@ -291,7 +291,7 @@ function ConvertTo-CodexRedactedText {
     $redacted = $redacted -replace 'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}', 'bot<redacted>'
     $redacted = $redacted -replace '[0-9]{6,}:[A-Za-z0-9_-]{20,}', '<telegram-token-redacted>'
     $redacted = $redacted -replace 'gho_[A-Za-z0-9_]+', 'gho_<redacted>'
-    $redacted = $redacted -replace '(TELEGRAM_(BOT_TOKEN|CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS)\s*=\s*)\S+', '$1<redacted>'
+    $redacted = $redacted -replace '(TELEGRAM_(BOT_TOKEN|CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS|START_ALLOWED_CHAT_IDS)\s*=\s*)\S+', '$1<redacted>'
     $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\Documents\\Codex\\[^\s<]+', '<local-codex-path>'
     $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\AppData\\[^\s<]+', '<local-appdata-path>'
     $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+', '<local-user-path>'
@@ -357,6 +357,15 @@ function Get-CodexCommandAllowedChatIds {
     }
 
     return Get-CodexAllowedChatIds
+}
+
+function Get-CodexStartAllowedChatIds {
+    $allowed = [Environment]::GetEnvironmentVariable("TELEGRAM_START_ALLOWED_CHAT_IDS", "Process")
+    if (![string]::IsNullOrWhiteSpace($allowed)) {
+        return Split-CodexChatIds -Value $allowed
+    }
+
+    return Get-CodexCommandAllowedChatIds
 }
 
 function Test-CodexChatIdAllowed {

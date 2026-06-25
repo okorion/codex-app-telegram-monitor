@@ -5,6 +5,7 @@
 logs/
 state/
 *.log
+testResults.xml
 
 .DS_Store
 Thumbs.db

@@ -69,6 +69,13 @@ if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_COMMAND_ALLOWED_CHAT_IDS"
     $commandAllowedChatIds = $allowedChatIds
 }
 
+$startAllowedChatIds = @()
+if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_START_ALLOWED_CHAT_IDS"])) {
+    $startAllowedChatIds = Split-CodexChatIds -Value $envValues["TELEGRAM_START_ALLOWED_CHAT_IDS"]
+} else {
+    $startAllowedChatIds = $commandAllowedChatIds
+}
+
 $botReachable = Test-CodexTelegramBot -Token $envValues["TELEGRAM_BOT_TOKEN"]
 $envFileProtected = Test-CodexEnvFileProtected -Path $envFile
 $monitorTask = Get-TaskHealth -TaskName $monitorTaskName -TaskPath $taskPath -EnvFile $envFile
@@ -98,6 +105,7 @@ $deviceName = if (![string]::IsNullOrWhiteSpace($envValues["CODEX_DEVICE_NAME"])
     TelegramChatIdPresent = $chatPresent
     TelegramAllowedChatIdsCount = $allowedChatIds.Count
     TelegramCommandAllowedChatIdsCount = $commandAllowedChatIds.Count
+    TelegramStartAllowedChatIdsCount = $startAllowedChatIds.Count
     TelegramBotReachable = $botReachable
     MonitorTaskExists = $monitorTask.Exists
     MonitorTaskUsesCodexEnv = $monitorTask.UsesCodexEnv

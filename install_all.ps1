@@ -9,6 +9,8 @@
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
+
 $envFile = Join-Path $PSScriptRoot ".env"
 $stepResults = New-Object System.Collections.Generic.List[object]
 
@@ -58,7 +60,57 @@ function Invoke-Step {
     }
 }
 
+function Invoke-PreflightChecks {
+    Write-Host ""
+    Write-Host "==> Preflight checks"
+
+    $powerShellOk = $PSVersionTable.PSVersion -ge [version]"5.1"
+    Add-StepResult `
+        -Name "Preflight: PowerShell" `
+        -Status $(if ($powerShellOk) { "OK" } else { "FAIL" }) `
+        -Detail "Version $($PSVersionTable.PSVersion)" `
+        -NextCommand "Install or run with Windows PowerShell 5.1 or later."
+
+    $scheduledTaskCommand = Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue
+    Add-StepResult `
+        -Name "Preflight: Task Scheduler cmdlets" `
+        -Status $(if ($scheduledTaskCommand) { "OK" } else { "FAIL" }) `
+        -Detail $(if ($scheduledTaskCommand) { "Available" } else { "Missing" }) `
+        -NextCommand "Run on Windows with ScheduledTasks PowerShell module available."
+
+    $executionPolicyRows = @(Get-ExecutionPolicy -List)
+    $blockedPolicies = @($executionPolicyRows | Where-Object {
+        $_.Scope -in @("MachinePolicy", "UserPolicy", "LocalMachine", "CurrentUser", "Process") -and
+        $_.ExecutionPolicy -in @("Restricted", "AllSigned")
+    })
+    $policyStatus = if ($blockedPolicies.Count -gt 0) { "WARN" } else { "OK" }
+    $policyDetail = ($executionPolicyRows | ForEach-Object { "$($_.Scope)=$($_.ExecutionPolicy)" }) -join "; "
+    Add-StepResult `
+        -Name "Preflight: Execution policy" `
+        -Status $policyStatus `
+        -Detail $policyDetail
+
+    $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
+    Add-StepResult `
+        -Name "Preflight: git" `
+        -Status $(if ($gitCommand) { "OK" } else { "WARN" }) `
+        -Detail $(if ($gitCommand) { "Available" } else { "Missing; update.ps1 git pull will not work" })
+
+    $codexStartApps = @(Get-CodexStartAppCandidates)
+    Add-StepResult `
+        -Name "Preflight: Codex StartApps detection" `
+        -Status $(if ($codexStartApps.Count -gt 0) { "OK" } else { "WARN" }) `
+        -Detail "Candidates=$($codexStartApps.Count)"
+
+    $failed = @($stepResults | Where-Object { $_.Name -like "Preflight:*" -and $_.Status -eq "FAIL" })
+    if ($failed.Count -gt 0) {
+        throw "Preflight checks failed. See Install summary above."
+    }
+}
+
 try {
+    Invoke-PreflightChecks
+
     if (!$SkipConfigure) {
         if (Test-Path -LiteralPath $envFile) {
             Write-Host "Existing .env found. Keeping current Telegram configuration."

@@ -54,6 +54,7 @@ $lines = @(
     "TELEGRAM_PERSONAL_CHAT_ID=$($chat.id)",
     "TELEGRAM_ALLOWED_CHAT_IDS=$($chat.id)",
     "TELEGRAM_COMMAND_ALLOWED_CHAT_IDS=$($chat.id)",
+    "TELEGRAM_START_ALLOWED_CHAT_IDS=$($chat.id)",
     "CODEX_MONITOR_TITLE=Codex app monitor test",
     "CODEX_DEVICE_NAME=$deviceName",
     "CODEX_APP_USER_MODEL_ID=auto",
