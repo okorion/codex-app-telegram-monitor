@@ -1,21 +1,79 @@
 # Codex App Telegram Monitor
 
-[한국어](README.md) | English
-
-Windows PowerShell scripts for managing the Codex desktop app through a dedicated Telegram bot.
+Windows PowerShell tools for checking, notifying, and remotely starting the Codex desktop app through a dedicated Telegram bot.
 
 ![Codex App Telegram Monitor overview](assets/codex-app-telegram-monitor-overview.png)
 
-The tool can:
+## Recommended First-Time Setup
 
-- Send a daily Codex App status notification.
-- Start Codex automatically at 09:00 if it is not running.
-- Listen for Telegram commands from authorized chats.
-- Start Codex remotely from a phone with `/codex_on`.
-- Report health, version, listener heartbeat, and recent listener logs through Telegram.
-- Register short Telegram bot commands for quick mobile use.
+1. Create a dedicated Telegram bot with `@BotFather` and copy the bot token.
+2. Clone this repository on the Windows PC.
+3. Run the all-in-one installer, `install_all.ps1`.
+4. Paste the bot token when PowerShell asks for it.
+5. Send `/start` to the new bot in Telegram.
+6. Return to PowerShell and press Enter.
+7. After install completes, test `/p`, `/s`, and `/o` in Telegram.
 
-It uses Telegram long polling. No inbound network port or webhook server is required.
+```powershell
+git clone https://github.com/okorion/codex-app-telegram-monitor.git
+cd codex-app-telegram-monitor
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
+```
+
+`install_all.ps1` configures `.env`, protects `.env` ACLs, registers the Telegram command menu, sends a test message, installs the 09:00 daily monitor, installs the command listener, installs the watchdog, and runs a health check.
+
+## Control Conditions
+
+After setup, you can control Codex App from Telegram when these conditions are true:
+
+- The PC is powered on.
+- The Windows user is logged in.
+- The PC is not asleep.
+- The PC can reach Telegram API over the internet.
+- The `Codex Telegram Command Listener` scheduled task is running.
+- The Telegram chat is included in the allowed chat ID settings in `.env`.
+- Codex desktop app is installed on the PC.
+
+This tool uses Telegram long polling. It does not need an inbound port or webhook server. It cannot start a GUI app when the PC is powered off, asleep, or no Windows user is logged in.
+
+## Telegram Commands
+
+Send these commands in an authorized bot chat:
+
+| Short | Full command | Purpose |
+| --- | --- | --- |
+| `/p` | `/ping` | Check whether the command listener is responding. |
+| `/s` | `/codex_status` | Check whether Codex App is currently running. |
+| `/o` | `/codex_on` | Start Codex App remotely. Sends a request message first, then a final `OK` or `WARN`. |
+| `/h` | `/codex_health` | Check Telegram, scheduler, listener, heartbeat, log, and `.env` ACL status. |
+| `/v` | `/codex_version` | Show Codex App detection details, package version, and process paths. |
+| `/l` | `/codex_logs` | Show recent listener logs. Defaults to 20 lines. |
+| `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
+| `/m` | `/help` | Show the command list. |
+
+Some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents.
+
+## GUI Settings Tool
+
+The GUI is optional. The console installer is usually easiest for first-time setup. Use the GUI when editing an existing `.env` or when console input is inconvenient.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram-gui.ps1
+```
+
+The GUI can:
+
+- Save `Telegram bot token`
+- Edit notification, command-allowed, and start-allowed chat IDs
+- Edit device name and message title
+- Save `.env` and protect its ACL
+- Run diagnostics
+
+The GUI does not auto-detect chat IDs. Use `install_all.ps1` or `configure-codex-telegram.ps1` when you need automatic chat ID detection. If you saved `.env` from the GUI first, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
+```
 
 ## Feature Summary
 
@@ -27,7 +85,7 @@ It uses Telegram long polling. No inbound network port or webhook server is requ
 | Mobile shortcuts | Registers one-letter Telegram commands, such as `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, and `/m`. |
 | Watchdog | Checks every 5 minutes whether the command listener task is running and starts it again if needed. |
 | Local security | Keeps secrets in ignored `.env`, protects `.env` ACLs, separates command/start-allowed chats, and redacts sensitive log content. |
-| Multi-PC use | Supports per-PC display names and documents the one-bot-token-per-active-PC long-polling limitation. |
+| Multi-PC use | Supports per-PC display names and recommends one bot token per active PC because Telegram long polling is token-wide. |
 
 ## How It Works
 
@@ -51,24 +109,9 @@ Separate scheduled tasks handle the daily 09:00 monitor and the listener watchdo
 - Windows with PowerShell 5.1 or later.
 - Codex desktop app installed.
 - A Telegram bot created with `@BotFather`.
-- A personal chat with the bot. Send `/start` to the bot before configuration.
+- A personal chat with the bot.
 
-## Quick Start
-
-Clone the repository:
-
-```powershell
-git clone https://github.com/okorion/codex-app-telegram-monitor.git
-cd codex-app-telegram-monitor
-```
-
-Run the guided installer:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
-```
-
-The installer configures Telegram when `.env` is missing, protects the local `.env` ACL, registers the Telegram command menu, sends a test message, installs the daily monitor, installs the command listener, installs a listener watchdog, and runs `health-check.ps1`.
+## Install Options
 
 Useful installer switches:
 
@@ -80,63 +123,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipE
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipBotCommandMenu
 ```
 
-## Manual Setup
-
-Configure Telegram:
+Manual setup commands:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram.ps1
-```
-
-Optional GUI configuration:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\configure-codex-telegram-gui.ps1
-```
-
-Send a test Telegram message:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\telegram-test.ps1
-```
-
-Preview the test message without sending it:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\telegram-test.ps1 -DryRun
-```
-
-Install the daily 09:00 monitor:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_task.ps1
-```
-
-Install the Telegram command listener and watchdog:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_command_listener_task.ps1
-```
-
-Register or refresh the Telegram command menu:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register_bot_commands.ps1
-```
-
-Protect the local `.env` file ACL:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\protect_env_file.ps1
-```
-
-Check the setup:
-
-```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 ```
 
-Run a support-oriented diagnostic report:
+## Diagnostics And Support
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1
@@ -146,86 +146,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -Json
 
 Use `-SupportBundle` when opening a GitHub issue. Use `-Json` when another tool should parse the diagnostic result. Both outputs redact Telegram tokens, chat IDs, and common local user paths.
 
-## Updating
+See [SUPPORT.en.md](SUPPORT.en.md) for support details.
 
-Update an existing clone:
+## Updating
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\update.ps1
 ```
 
-`update.ps1` pulls the latest repository changes, keeps the existing `.env`, refreshes scheduled tasks, restarts the listener task when installed, and runs diagnostics. For a manual update, run:
+`update.ps1` pulls the latest repository changes, keeps the existing `.env`, refreshes scheduled tasks, restarts the listener task when installed, and runs diagnostics.
+
+Manual update:
 
 ```powershell
 git pull
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure -SkipTelegramTest
-```
-
-## Releases
-
-GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. See [RELEASE.en.md](RELEASE.en.md).
-
-## Telegram Commands
-
-Send these messages to an authorized bot chat:
-
-```text
-/o
-/s
-/h
-/v
-/l
-/l 30
-/p
-/m
-```
-
-Command reference:
-
-| Short | Full command | Purpose |
-| --- | --- | --- |
-| `/o` | `/codex_on` | Start Codex App remotely. Sends a request message first, then a final `OK` or `WARN`. |
-| `/s` | `/codex_status` | Check whether Codex App is currently running. |
-| `/h` | `/codex_health` | Check Telegram, scheduler, listener, heartbeat, log, and `.env` ACL status. |
-| `/v` | `/codex_version` | Show Codex App detection details, package version, and process paths. |
-| `/l` | `/codex_logs` | Show recent listener logs. Defaults to 20 lines. |
-| `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
-| `/p` | `/ping` | Confirm that the command listener is responding. |
-| `/m` | `/help` | Show the command list. |
-
-Full command names are also supported:
-
-```text
-/codex_on
-/codex_status
-/codex_health
-/codex_version
-/codex_logs
-/codex_logs 30
-/ping
-/help
-```
-
-`/codex_on` sends a start request first. If Codex was not running, the listener waits up to 60 seconds and then sends a final `OK` or `WARN` message.
-
-`/codex_health` reports bot, task scheduler, listener, watchdog, offset-file, heartbeat, log, and `.env` ACL status.
-
-`/codex_version` reports Codex App detection details, package version when available, and running process paths.
-
-`/codex_logs` sends recent listener logs. The default is 20 lines. The accepted range is 5 to 50 lines. Token-like values are redacted before sending.
-
-`/ping` quickly confirms that the command listener is responding and reports the latest polling heartbeat.
-
-Short aliases:
-
-```text
-/o = /codex_on
-/s = /codex_status
-/h = /codex_health
-/v = /codex_version
-/l = /codex_logs
-/p = /ping
-/m = /help
 ```
 
 ## Example Telegram Messages
@@ -326,8 +261,6 @@ The installer scripts create these Windows Task Scheduler entries:
 
 The command listener starts at user logon and keeps polling Telegram while the Windows user session is active. The watchdog checks every 5 minutes and starts the listener task again if it is not running.
 
-These scripts cannot start GUI apps when the PC is powered off, asleep, or not logged in.
-
 ## Uninstall
 
 Remove scheduled tasks while keeping `.env`, logs, and state:
@@ -336,22 +269,17 @@ Remove scheduled tasks while keeping `.env`, logs, and state:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1
 ```
 
-Remove the daily monitor task only:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_task.ps1
-```
-
-Remove the Telegram command listener and watchdog tasks:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_listener_task.ps1
-```
-
 Delete local configuration and runtime files only when you intentionally want a full cleanup:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1 -RemoveEnv -RemoveLogs -RemoveState
+```
+
+Remove individual tasks:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_task.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_listener_task.ps1
 ```
 
 ## Security Notes
@@ -368,15 +296,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_all.ps1 -Rem
 
 For a fuller security model, see [SECURITY.en.md](SECURITY.en.md).
 
-## Support
+## Releases
 
-Before opening an issue, run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
-```
-
-Then include the redacted output in the issue. See [SUPPORT.en.md](SUPPORT.en.md) for details.
+GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. See [RELEASE.en.md](RELEASE.en.md).
 
 ## Validation
 
@@ -407,3 +329,7 @@ Run Pester tests when Pester 5 is available:
 ```powershell
 Invoke-Pester -Path .\tests
 ```
+
+## Language
+
+[한국어](README.md) | English
