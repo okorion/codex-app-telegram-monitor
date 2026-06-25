@@ -13,6 +13,35 @@ The tool can:
 
 It uses Telegram long polling. No inbound network port or webhook server is required.
 
+## Feature Summary
+
+| Area | What it does |
+| --- | --- |
+| Daily monitor | At 09:00, checks whether Codex App is running. If it is not running, starts it and sends the result to Telegram. |
+| Remote control | Lets an authorized Telegram chat start Codex App with `/o` or `/codex_on`. |
+| Status checks | Reports running status, process count, app version, scheduler state, listener heartbeat, and recent logs. |
+| Mobile shortcuts | Registers one-letter Telegram commands, such as `/o`, `/s`, `/h`, `/v`, `/l`, `/p`, and `/m`. |
+| Watchdog | Checks every 5 minutes whether the command listener task is running and starts it again if needed. |
+| Local security | Keeps secrets in ignored `.env`, protects `.env` ACLs, separates command-allowed chats, and redacts sensitive log content. |
+| Multi-PC use | Supports per-PC display names and documents the one-bot-token-per-active-PC long-polling limitation. |
+
+## How It Works
+
+```text
+Phone Telegram chat
+  -> Telegram Bot API long polling
+  -> Windows Task Scheduler listener
+  -> Codex App start/status/version/log actions
+  -> Telegram result message
+```
+
+Separate scheduled tasks handle the daily 09:00 monitor and the listener watchdog:
+
+```text
+09:00 daily task -> check Codex App -> start if needed -> send Telegram result
+5 min watchdog  -> check listener task -> restart listener task if needed
+```
+
 ## Requirements
 
 - Windows with PowerShell 5.1 or later.
@@ -111,6 +140,19 @@ Send these messages to an authorized bot chat:
 /p
 /m
 ```
+
+Command reference:
+
+| Short | Full command | Purpose |
+| --- | --- | --- |
+| `/o` | `/codex_on` | Start Codex App remotely. Sends a request message first, then a final `OK` or `WARN`. |
+| `/s` | `/codex_status` | Check whether Codex App is currently running. |
+| `/h` | `/codex_health` | Check Telegram, scheduler, listener, heartbeat, log, and `.env` ACL status. |
+| `/v` | `/codex_version` | Show Codex App detection details, package version, and process paths. |
+| `/l` | `/codex_logs` | Show recent listener logs. Defaults to 20 lines. |
+| `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
+| `/p` | `/ping` | Confirm that the command listener is responding. |
+| `/m` | `/help` | Show the command list. |
 
 Full command names are also supported:
 
