@@ -1,30 +1,15 @@
 ﻿$ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
+
 $envFile = Join-Path $PSScriptRoot ".env"
 $monitorTaskName = "Ensure Codex App Running at 9AM"
 $listenerTaskName = "Codex Telegram Command Listener"
 $watchdogTaskName = "Codex Telegram Command Listener Watchdog"
 $taskPath = "\Codex\"
 $offsetFile = Join-Path $PSScriptRoot "state\telegram-command-offset.txt"
-
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-function Read-DotEnvKeys {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $result = @{}
-    if (!(Test-Path -LiteralPath $Path)) {
-        return $result
-    }
-
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
-            $result[$matches[1]] = $matches[2].Trim()
-        }
-    }
-
-    return $result
-}
+$heartbeatFile = Join-Path $PSScriptRoot "state\telegram-command-listener-heartbeat.txt"
+$logFile = Join-Path $PSScriptRoot "logs\telegram-command-listener.log"
 
 function Get-TaskHealth {
     param(
@@ -59,27 +44,12 @@ function Get-TaskHealth {
     }
 }
 
-function Test-TelegramBot {
-    param([AllowNull()][string]$Token)
-
-    if ([string]::IsNullOrWhiteSpace($Token)) {
-        return $false
-    }
-
-    try {
-        $response = Invoke-RestMethod -Method Get -Uri "https://api.telegram.org/bot$Token/getMe" -TimeoutSec 15
-        return [bool]$response.ok
-    } catch {
-        return $false
-    }
-}
-
-$envValues = Read-DotEnvKeys -Path $envFile
+$envValues = Read-CodexDotEnvKeys -Path $envFile
 $tokenPresent = ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_BOT_TOKEN"])
 $chatPresent = ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_CHAT_ID"]) -or ![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_PERSONAL_CHAT_ID"])
 $allowedChatIds = @()
 if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_ALLOWED_CHAT_IDS"])) {
-    $allowedChatIds = @($envValues["TELEGRAM_ALLOWED_CHAT_IDS"] -split "[,;\s]+" | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    $allowedChatIds = Split-CodexChatIds -Value $envValues["TELEGRAM_ALLOWED_CHAT_IDS"]
 } else {
     $fallbackChatIds = @()
     if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_PERSONAL_CHAT_ID"])) {
@@ -90,18 +60,42 @@ if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_ALLOWED_CHAT_IDS"])) {
     }
     $allowedChatIds = @($fallbackChatIds | Select-Object -Unique)
 }
-$botReachable = Test-TelegramBot -Token $envValues["TELEGRAM_BOT_TOKEN"]
 
+$commandAllowedChatIds = @()
+if (![string]::IsNullOrWhiteSpace($envValues["TELEGRAM_COMMAND_ALLOWED_CHAT_IDS"])) {
+    $commandAllowedChatIds = Split-CodexChatIds -Value $envValues["TELEGRAM_COMMAND_ALLOWED_CHAT_IDS"]
+} else {
+    $commandAllowedChatIds = $allowedChatIds
+}
+
+$botReachable = Test-CodexTelegramBot -Token $envValues["TELEGRAM_BOT_TOKEN"]
+$envFileProtected = Test-CodexEnvFileProtected -Path $envFile
 $monitorTask = Get-TaskHealth -TaskName $monitorTaskName -TaskPath $taskPath -EnvFile $envFile
 $listenerTask = Get-TaskHealth -TaskName $listenerTaskName -TaskPath $taskPath -EnvFile $envFile
 $watchdogTask = Get-TaskHealth -TaskName $watchdogTaskName -TaskPath $taskPath -EnvFile $envFile
+$heartbeatAt = Read-CodexListenerHeartbeat -Path $heartbeatFile
+$heartbeatStaleSeconds = 120
+if (![string]::IsNullOrWhiteSpace($envValues["CODEX_HEARTBEAT_STALE_SECONDS"])) {
+    [int]::TryParse($envValues["CODEX_HEARTBEAT_STALE_SECONDS"], [ref]$heartbeatStaleSeconds) | Out-Null
+}
+$heartbeatAgeSeconds = if ($null -ne $heartbeatAt) { [math]::Max(0, [int]((Get-Date) - $heartbeatAt).TotalSeconds) } else { $null }
+$heartbeatFresh = $null -ne $heartbeatAgeSeconds -and $heartbeatAgeSeconds -le $heartbeatStaleSeconds
+$logFileSizeBytes = if (Test-Path -LiteralPath $logFile) { (Get-Item -LiteralPath $logFile).Length } else { 0 }
+$deviceName = if (![string]::IsNullOrWhiteSpace($envValues["CODEX_DEVICE_NAME"]) -and $envValues["CODEX_DEVICE_NAME"] -ne "auto") {
+    $envValues["CODEX_DEVICE_NAME"]
+} else {
+    $env:COMPUTERNAME
+}
 
 [PSCustomObject]@{
     EnvFile = $envFile
     EnvFileExists = Test-Path -LiteralPath $envFile
+    EnvFileAclProtected = $envFileProtected
+    DeviceName = $deviceName
     TelegramBotTokenPresent = $tokenPresent
     TelegramChatIdPresent = $chatPresent
     TelegramAllowedChatIdsCount = $allowedChatIds.Count
+    TelegramCommandAllowedChatIdsCount = $commandAllowedChatIds.Count
     TelegramBotReachable = $botReachable
     MonitorTaskExists = $monitorTask.Exists
     MonitorTaskUsesCodexEnv = $monitorTask.UsesCodexEnv
@@ -119,6 +113,12 @@ $watchdogTask = Get-TaskHealth -TaskName $watchdogTaskName -TaskPath $taskPath -
     CommandListenerWatchdogLastRunTime = $watchdogTask.LastRunTime
     CommandListenerWatchdogLastTaskResult = $watchdogTask.LastTaskResult
     CommandListenerOffsetFileExists = Test-Path -LiteralPath $offsetFile
+    CommandListenerHeartbeatFileExists = Test-Path -LiteralPath $heartbeatFile
+    CommandListenerHeartbeatAt = if ($heartbeatAt) { $heartbeatAt.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
+    CommandListenerHeartbeatAgeSeconds = $heartbeatAgeSeconds
+    CommandListenerHeartbeatFresh = $heartbeatFresh
+    CommandListenerLogFileExists = Test-Path -LiteralPath $logFile
+    CommandListenerLogSizeBytes = $logFileSizeBytes
 } | Format-List
 
 if (!$tokenPresent -or !$chatPresent) {
@@ -135,4 +135,8 @@ if ($listenerTask.Exists -and !$listenerTask.UsesCodexEnv) {
 
 if ($watchdogTask.Exists -and !$watchdogTask.UsesCodexEnv) {
     exit 5
+}
+
+if (!$envFileProtected) {
+    exit 6
 }

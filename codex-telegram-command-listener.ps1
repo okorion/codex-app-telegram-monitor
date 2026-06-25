@@ -9,192 +9,82 @@
 
 $ErrorActionPreference = "Stop"
 
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+. (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
 
 $StateDir = Join-Path $PSScriptRoot "state"
 $LogDir = Join-Path $PSScriptRoot "logs"
 $OffsetFile = Join-Path $StateDir "telegram-command-offset.txt"
+$HeartbeatFile = Join-Path $StateDir "telegram-command-listener-heartbeat.txt"
 $LogFile = Join-Path $LogDir "telegram-command-listener.log"
-$CodexAppUserModelId = "OpenAI.Codex_2p2nqsd0c76g0!App"
-$CodexProcessPathPattern = "*\OpenAI.Codex_*\app\Codex.exe"
-$MessageTitle = "Codex app monitor test"
 $MonitorTaskName = "Ensure Codex App Running at 9AM"
 $ListenerTaskName = "Codex Telegram Command Listener"
 $WatchdogTaskName = "Codex Telegram Command Listener Watchdog"
 $TaskPath = "\Codex\"
+$CodexAppUserModelId = $script:CodexDefaultAppUserModelId
+$CodexProcessPathPattern = $script:CodexDefaultProcessPathPattern
+$MessageTitle = $script:CodexDefaultMessageTitle
+$DeviceName = "Windows PC"
 
 function Ensure-LocalFolders {
-    New-Item -ItemType Directory -Path $StateDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+    Ensure-CodexDirectory -Path $StateDir
+    Ensure-CodexDirectory -Path $LogDir
+}
+
+function Get-LogMaxBytes {
+    return Get-CodexInt64EnvOrDefault -Name "CODEX_LOG_MAX_BYTES" -DefaultValue 1048576 -MinValue 1024
+}
+
+function Get-LogKeepFiles {
+    return Get-CodexIntEnvOrDefault -Name "CODEX_LOG_KEEP_FILES" -DefaultValue 5 -MinValue 1
 }
 
 function Write-ListenerLog {
     param([Parameter(Mandatory = $true)][string]$Message)
 
     Ensure-LocalFolders
-    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    Add-Content -LiteralPath $LogFile -Encoding UTF8 -Value "[$timestamp] $Message"
+    Write-CodexLog `
+        -Path $LogFile `
+        -Message $Message `
+        -MaxBytes (Get-LogMaxBytes) `
+        -KeepFiles (Get-LogKeepFiles)
 }
 
-function Import-DotEnv {
-    param([Parameter(Mandatory = $true)][string]$Path)
+function Save-ListenerHeartbeat {
+    Save-CodexListenerHeartbeat -Path $HeartbeatFile
+}
 
-    if (!(Test-Path -LiteralPath $Path)) {
-        throw "Env file not found: $Path"
-    }
+function Get-ListenerHeartbeatStatus {
+    $heartbeatAt = Read-CodexListenerHeartbeat -Path $HeartbeatFile
+    $staleSeconds = Get-CodexIntEnvOrDefault -Name "CODEX_HEARTBEAT_STALE_SECONDS" -DefaultValue 120 -MinValue 30
 
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
-            continue
+    if ($null -eq $heartbeatAt) {
+        return @{
+            Exists = $false
+            Timestamp = $null
+            TimestampText = "Missing"
+            AgeText = "unknown"
+            AgeSeconds = $null
+            Fresh = $false
+            StaleSeconds = $staleSeconds
         }
-
-        $name = $matches[1]
-        $value = $matches[2].Trim()
-        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
-            $value = $value.Substring(1, $value.Length - 2).Replace('\"', '"')
-        } elseif ($value.StartsWith("'") -and $value.EndsWith("'")) {
-            $value = $value.Substring(1, $value.Length - 2)
-        }
-
-        [Environment]::SetEnvironmentVariable($name, $value, "Process")
-    }
-}
-
-function Get-EnvOrDefault {
-    param(
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$DefaultValue
-    )
-
-    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return $DefaultValue
     }
 
-    return $value
-}
-
-function Test-AutoConfigValue {
-    param([AllowNull()][string]$Value)
-
-    return [string]::IsNullOrWhiteSpace($Value) -or $Value.Trim().ToLowerInvariant() -eq "auto"
-}
-
-function ConvertTo-TelegramHtml {
-    param([AllowNull()][string]$Text)
-
-    if ($null -eq $Text) {
-        return ""
-    }
-
-    return $Text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")
-}
-
-function Get-CodexStartApp {
-    try {
-        return Get-StartApps |
-            Where-Object { $_.AppID -like "OpenAI.Codex*" -or $_.Name -like "*Codex*" } |
-            Select-Object -First 1
-    } catch {
-        return $null
-    }
-}
-
-function Get-CodexAppxPackage {
-    try {
-        return Get-AppxPackage -Name "OpenAI.Codex*" -ErrorAction SilentlyContinue |
-            Sort-Object Version -Descending |
-            Select-Object -First 1
-    } catch {
-        return $null
-    }
-}
-
-function Resolve-CodexAppSettings {
-    $configuredAppId = [Environment]::GetEnvironmentVariable("CODEX_APP_USER_MODEL_ID", "Process")
-    $configuredPathPattern = [Environment]::GetEnvironmentVariable("CODEX_PROCESS_PATH_PATTERN", "Process")
-    $startApp = Get-CodexStartApp
-
-    if (Test-AutoConfigValue -Value $configuredAppId) {
-        if ($startApp -and ![string]::IsNullOrWhiteSpace($startApp.AppID)) {
-            $resolvedAppId = $startApp.AppID
-        } else {
-            $resolvedAppId = $CodexAppUserModelId
-        }
-    } else {
-        $resolvedAppId = $configuredAppId
-    }
-
-    if (Test-AutoConfigValue -Value $configuredPathPattern) {
-        $resolvedPathPattern = $CodexProcessPathPattern
-    } else {
-        $resolvedPathPattern = $configuredPathPattern
-    }
-
+    $ageSeconds = [math]::Max(0, [int]((Get-Date) - $heartbeatAt).TotalSeconds)
     return @{
-        AppUserModelId = $resolvedAppId
-        ProcessPathPattern = $resolvedPathPattern
-        StartAppName = if ($startApp) { $startApp.Name } else { $null }
-        StartAppId = if ($startApp) { $startApp.AppID } else { $null }
+        Exists = $true
+        Timestamp = $heartbeatAt
+        TimestampText = $heartbeatAt.ToString("yyyy-MM-dd HH:mm:ss")
+        AgeText = Get-CodexAgeText -Timestamp $heartbeatAt
+        AgeSeconds = $ageSeconds
+        Fresh = $ageSeconds -le $staleSeconds
+        StaleSeconds = $staleSeconds
     }
-}
-
-function Get-TelegramToken {
-    $token = [Environment]::GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "Process")
-    if ([string]::IsNullOrWhiteSpace($token)) {
-        throw "Telegram configuration is missing TELEGRAM_BOT_TOKEN."
-    }
-
-    return $token
-}
-
-function Get-AllowedChatIds {
-    $allowed = [Environment]::GetEnvironmentVariable("TELEGRAM_ALLOWED_CHAT_IDS", "Process")
-    if (![string]::IsNullOrWhiteSpace($allowed)) {
-        return @($allowed -split "[,;\s]+" | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
-    }
-
-    $chatIds = @()
-    $personalChatId = [Environment]::GetEnvironmentVariable("TELEGRAM_PERSONAL_CHAT_ID", "Process")
-    $defaultChatId = [Environment]::GetEnvironmentVariable("TELEGRAM_CHAT_ID", "Process")
-    if (![string]::IsNullOrWhiteSpace($personalChatId)) {
-        $chatIds += $personalChatId
-    }
-    if (![string]::IsNullOrWhiteSpace($defaultChatId)) {
-        $chatIds += $defaultChatId
-    }
-
-    $chatIds = @($chatIds | Select-Object -Unique)
-    if ($chatIds.Count -eq 0) {
-        throw "Telegram configuration is missing TELEGRAM_CHAT_ID."
-    }
-
-    return $chatIds
 }
 
 function Test-AllowedChatId {
     param([Parameter(Mandatory = $true)][string]$ChatId)
 
-    return (Get-AllowedChatIds) -contains $ChatId
-}
-
-function Invoke-TelegramApi {
-    param(
-        [Parameter(Mandatory = $true)][string]$MethodName,
-        [Parameter(Mandatory = $true)][hashtable]$Payload,
-        [int]$TimeoutSec = 30
-    )
-
-    $token = Get-TelegramToken
-    $uri = "https://api.telegram.org/bot$token/$MethodName"
-    $body = $Payload | ConvertTo-Json -Depth 6 -Compress
-
-    return Invoke-RestMethod `
-        -Method Post `
-        -Uri $uri `
-        -ContentType "application/json; charset=utf-8" `
-        -Body $body `
-        -TimeoutSec $TimeoutSec
+    return Test-CodexChatIdAllowed -ChatId $ChatId -AllowedChatIds @(Get-CodexCommandAllowedChatIds)
 }
 
 function Send-TelegramMessage {
@@ -203,22 +93,11 @@ function Send-TelegramMessage {
         [Parameter(Mandatory = $true)][string]$Message
     )
 
-    if ($DryRun) {
-        Write-Output $Message
-        return
-    }
-
-    Invoke-TelegramApi -MethodName "sendMessage" -Payload @{
-        chat_id = $ChatId
-        text = $Message
-        parse_mode = "HTML"
-        disable_web_page_preview = $true
-    } | Out-Null
+    Send-CodexTelegramMessage -ChatId $ChatId -Message $Message -DryRun:$DryRun
 }
 
-function Get-CodexAppProcesses {
-    return Get-Process -Name Codex -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -like $CodexProcessPathPattern }
+function Get-CodexAppProcessList {
+    return @(Get-CodexAppProcesses -ProcessPathPattern $CodexProcessPathPattern)
 }
 
 function Wait-CodexAppRunning {
@@ -229,7 +108,7 @@ function Wait-CodexAppRunning {
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
-        $processes = @(Get-CodexAppProcesses)
+        $processes = Get-CodexAppProcessList
         if ($processes.Count -gt 0) {
             return @{
                 Badge = "OK"
@@ -245,7 +124,7 @@ function Wait-CodexAppRunning {
         }
     } while ((Get-Date) -lt $deadline)
 
-    $finalProcesses = @(Get-CodexAppProcesses)
+    $finalProcesses = Get-CodexAppProcessList
     if ($finalProcesses.Count -gt 0) {
         return @{
             Badge = "OK"
@@ -267,7 +146,7 @@ function Wait-CodexAppRunning {
 function Invoke-CodexRemoteStart {
     param([Parameter(Mandatory = $true)][string]$ChatId)
 
-    $before = @(Get-CodexAppProcesses)
+    $before = Get-CodexAppProcessList
     if ($before.Count -gt 0) {
         $alreadyRunning = @{
             Badge = "OK"
@@ -293,7 +172,7 @@ function Invoke-CodexRemoteStart {
     }
 
     try {
-        Start-Process explorer.exe "shell:AppsFolder\$CodexAppUserModelId"
+        Start-CodexApp -AppUserModelId $CodexAppUserModelId
     } catch {
         $failedRequest = @{
             Badge = "WARN"
@@ -321,7 +200,7 @@ function Invoke-CodexRemoteStart {
 }
 
 function Get-CodexStatus {
-    $processes = @(Get-CodexAppProcesses)
+    $processes = Get-CodexAppProcessList
     if ($processes.Count -gt 0) {
         return @{
             Badge = "OK"
@@ -366,15 +245,6 @@ function Get-TaskHealth {
     }
 }
 
-function Test-TelegramBot {
-    try {
-        $response = Invoke-TelegramApi -MethodName "getMe" -Payload @{} -TimeoutSec 15
-        return [bool]$response.ok
-    } catch {
-        return $false
-    }
-}
-
 function ConvertTo-StatusIcon {
     param([bool]$Value)
 
@@ -399,66 +269,93 @@ function ConvertTo-TaskSummary {
     return "$Label`: ✅ $($Task.State), $envState"
 }
 
+function ConvertTo-HeartbeatSummary {
+    param([Parameter(Mandatory = $true)][hashtable]$Heartbeat)
+
+    if (!$Heartbeat.Exists) {
+        return "Listener heartbeat: ⚠️ Missing"
+    }
+
+    $icon = ConvertTo-StatusIcon -Value $Heartbeat.Fresh
+    $state = if ($Heartbeat.Fresh) { "Fresh" } else { "Stale" }
+    return "Listener heartbeat: $icon $state, $($Heartbeat.TimestampText) ($($Heartbeat.AgeText))"
+}
+
 function New-HealthMessage {
     $tokenPresent = ![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "Process"))
-    $allowedChatIds = @(Get-AllowedChatIds)
+    $allowedChatIds = @(Get-CodexAllowedChatIds)
+    $commandAllowedChatIds = @(Get-CodexCommandAllowedChatIds)
     $monitorTask = Get-TaskHealth -TaskName $MonitorTaskName
     $listenerTask = Get-TaskHealth -TaskName $ListenerTaskName
     $watchdogTask = Get-TaskHealth -TaskName $WatchdogTaskName
     $offsetFileExists = Test-Path -LiteralPath $OffsetFile
-    $botReachable = Test-TelegramBot
+    $heartbeat = Get-ListenerHeartbeatStatus
+    $botReachable = Test-CodexTelegramBot
+    $envProtected = Test-CodexEnvFileProtected -Path $EnvFile
+    $logFileExists = Test-Path -LiteralPath $LogFile
+    $logFileSize = if ($logFileExists) { (Get-Item -LiteralPath $LogFile).Length } else { 0 }
+    $heartbeatOk = $heartbeat.Exists -and $heartbeat.Fresh
     $overallOk = $tokenPresent -and
         $allowedChatIds.Count -gt 0 -and
+        $commandAllowedChatIds.Count -gt 0 -and
         $botReachable -and
+        $envProtected -and
         $monitorTask.Exists -and
         $monitorTask.UsesEnvFile -and
         $listenerTask.Exists -and
         $listenerTask.UsesEnvFile -and
         $watchdogTask.Exists -and
-        $watchdogTask.UsesEnvFile
+        $watchdogTask.UsesEnvFile -and
+        $heartbeatOk
     $now = Get-Date
 
     return @(
-        "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
         "<b>Health Check: $(ConvertTo-StatusIcon -Value $overallOk) $(if ($overallOk) { "OK" } else { "WARN" })</b>",
         "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
         "Bot token: $(ConvertTo-StatusIcon -Value $tokenPresent) $(if ($tokenPresent) { "Present" } else { "Missing" })",
         "Bot API: $(ConvertTo-StatusIcon -Value $botReachable) $(if ($botReachable) { "Reachable" } else { "Unavailable" })",
-        "Allowed chats: $($allowedChatIds.Count)개",
+        "Notification chats: $($allowedChatIds.Count)개",
+        "Command chats: $($commandAllowedChatIds.Count)개",
+        "Env ACL: $(ConvertTo-StatusIcon -Value $envProtected) $(if ($envProtected) { "Protected" } else { "Needs protection" })",
         (ConvertTo-TaskSummary -Label "Daily monitor" -Task $monitorTask),
         (ConvertTo-TaskSummary -Label "Command listener" -Task $listenerTask),
         (ConvertTo-TaskSummary -Label "Watchdog" -Task $watchdogTask),
         "Offset file: $(ConvertTo-StatusIcon -Value $offsetFileExists) $(if ($offsetFileExists) { "Present" } else { "Missing" })",
+        (ConvertTo-HeartbeatSummary -Heartbeat $heartbeat),
+        "Log file: $(ConvertTo-StatusIcon -Value $logFileExists) $(if ($logFileExists) { "$logFileSize bytes" } else { "Missing" })",
         "",
-        "Processed at: $(ConvertTo-TelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+        "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
     ) -join "`n"
 }
 
 function New-VersionMessage {
     $startApp = Get-CodexStartApp
     $package = Get-CodexAppxPackage
-    $processes = @(Get-CodexAppProcesses)
+    $processes = Get-CodexAppProcessList
     $now = Get-Date
 
     $lines = @(
-        "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
         "<b>Codex Version</b>",
         "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
         "실행 상태: $(if ($processes.Count -gt 0) { "실행 중" } else { "미실행" })",
         "프로세스: $($processes.Count)개",
-        "App ID: $(ConvertTo-TelegramHtml $CodexAppUserModelId)",
-        "Process pattern: $(ConvertTo-TelegramHtml $CodexProcessPathPattern)"
+        "App ID: $(ConvertTo-CodexTelegramHtml $CodexAppUserModelId)",
+        "Process pattern: $(ConvertTo-CodexTelegramHtml $CodexProcessPathPattern)"
     )
 
     if ($startApp) {
-        $lines += "Start menu name: $(ConvertTo-TelegramHtml $startApp.Name)"
+        $lines += "Start menu name: $(ConvertTo-CodexTelegramHtml $startApp.Name)"
     }
 
     if ($package) {
-        $lines += "Package name: $(ConvertTo-TelegramHtml $package.Name)"
-        $lines += "Package version: $(ConvertTo-TelegramHtml ([string]$package.Version))"
+        $lines += "Package name: $(ConvertTo-CodexTelegramHtml $package.Name)"
+        $lines += "Package version: $(ConvertTo-CodexTelegramHtml ([string]$package.Version))"
     } else {
         $lines += "Package version: 확인 안 됨"
     }
@@ -466,12 +363,12 @@ function New-VersionMessage {
     if ($processes.Count -gt 0) {
         $paths = @($processes | Select-Object -ExpandProperty Path -Unique | Select-Object -First 3)
         foreach ($path in $paths) {
-            $lines += "Process path: $(ConvertTo-TelegramHtml $path)"
+            $lines += "Process path: $(ConvertTo-CodexTelegramHtml $path)"
         }
     }
 
     $lines += ""
-    $lines += "Processed at: $(ConvertTo-TelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+    $lines += "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
 
     return $lines -join "`n"
 }
@@ -487,7 +384,9 @@ function ConvertTo-RedactedLogLine {
     $redacted = $redacted -replace 'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}', 'bot<redacted>'
     $redacted = $redacted -replace '[0-9]{6,}:[A-Za-z0-9_-]{20,}', '<telegram-token-redacted>'
     $redacted = $redacted -replace 'gho_[A-Za-z0-9_]+', 'gho_<redacted>'
-    $redacted = $redacted -replace '(TELEGRAM_(BOT_TOKEN|CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS)\s*=\s*)\S+', '$1<redacted>'
+    $redacted = $redacted -replace '(TELEGRAM_(BOT_TOKEN|CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS)\s*=\s*)\S+', '$1<redacted>'
+    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\Documents\\Codex\\[^\s<]+', '<local-codex-path>'
+    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\AppData\\[^\s<]+', '<local-appdata-path>'
     return $redacted
 }
 
@@ -515,13 +414,14 @@ function New-LogsMessage {
     $now = Get-Date
     if (!(Test-Path -LiteralPath $LogFile)) {
         return @(
-            "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+            "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
             "",
             "<b>Listener Logs</b>",
             "대상: Codex App",
+            "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
             "로그 파일이 없습니다.",
             "",
-            "Processed at: $(ConvertTo-TelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+            "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
         ) -join "`n"
     }
 
@@ -531,15 +431,32 @@ function New-LogsMessage {
     }
 
     return @(
-        "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
         "<b>Listener Logs</b>",
         "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
         "Lines: $Count",
         "",
-        "<pre>$(ConvertTo-TelegramHtml $logText)</pre>",
+        "<pre>$(ConvertTo-CodexTelegramHtml $logText)</pre>",
         "",
-        "Processed at: $(ConvertTo-TelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+        "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+    ) -join "`n"
+}
+
+function New-PingMessage {
+    $now = Get-Date
+    $heartbeat = Get-ListenerHeartbeatStatus
+
+    return @(
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
+        "",
+        "<b>Listener Ping: ✅ OK</b>",
+        "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
+        "마지막 polling: $($heartbeat.TimestampText) ($($heartbeat.AgeText))",
+        "",
+        "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
     ) -join "`n"
 }
 
@@ -551,17 +468,18 @@ function New-ResultMessage {
 
     $now = Get-Date
     $lines = @(
-        "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
         "<b>$ResultLabel`: $($Result.Icon) $($Result.Badge)</b>",
-        "대상: Codex App"
+        "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)"
     )
 
     if (![string]::IsNullOrWhiteSpace([string]$Result.BeforeState)) {
-        $lines += "실행 전 상태: $(ConvertTo-TelegramHtml $Result.BeforeState)"
+        $lines += "실행 전 상태: $(ConvertTo-CodexTelegramHtml $Result.BeforeState)"
     }
 
-    $lines += "현재 실행 상태: $(ConvertTo-TelegramHtml $Result.CurrentState)"
+    $lines += "현재 실행 상태: $(ConvertTo-CodexTelegramHtml $Result.CurrentState)"
     if ($null -eq $Result.ProcessCount) {
         $lines += "프로세스: 확인 중"
     } else {
@@ -570,11 +488,11 @@ function New-ResultMessage {
 
     if (![string]::IsNullOrWhiteSpace([string]$Result.Notice)) {
         $lines += ""
-        $lines += "안내: $(ConvertTo-TelegramHtml $Result.Notice)"
+        $lines += "안내: $(ConvertTo-CodexTelegramHtml $Result.Notice)"
     }
 
     $lines += ""
-    $lines += "Processed at: $(ConvertTo-TelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
+    $lines += "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
 
     if ($null -ne $Result.ProcessCount -and $Result.ProcessCount -eq 0) {
         $lines += ""
@@ -586,7 +504,7 @@ function New-ResultMessage {
 
 function New-HelpMessage {
     return @(
-        "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+        "<b>$(ConvertTo-CodexTelegramHtml $MessageTitle)</b>",
         "",
         "<b>사용 가능한 명령</b>",
         "/o - Codex 앱 실행",
@@ -594,11 +512,12 @@ function New-HelpMessage {
         "/h - 설정 및 스케줄러 상태 확인",
         "/v - Codex 앱 버전 및 감지 정보",
         "/l [count] - 최근 리스너 로그 확인",
+        "/p - 리스너 응답 확인",
         "/m - 명령 목록 보기",
         "",
         "<b>전체 명령</b>",
         "/codex_on, /codex_status, /codex_health",
-        "/codex_version, /codex_logs, /help"
+        "/codex_version, /codex_logs, /ping, /help"
     ) -join "`n"
 }
 
@@ -649,6 +568,11 @@ function Get-CommandType {
         return "logs"
     }
 
+    if ($lower -match '^/(ping|p)$' -or
+        $lower -match '^/(ping|p)@[a-z0-9_]+$') {
+        return "ping"
+    }
+
     return "unknown"
 }
 
@@ -663,7 +587,12 @@ function Read-Offset {
         return $null
     }
 
-    return [int64]$value
+    try {
+        return [int64]$value
+    } catch {
+        Write-ListenerLog "Invalid Telegram offset file. Reinitializing offset."
+        return $null
+    }
 }
 
 function Save-Offset {
@@ -689,7 +618,7 @@ function Receive-TelegramUpdates {
         $payload.offset = $Offset
     }
 
-    $response = Invoke-TelegramApi `
+    $response = Invoke-CodexTelegramApi `
         -MethodName "getUpdates" `
         -Payload $payload `
         -TimeoutSec ($TimeoutSeconds + 15)
@@ -698,6 +627,7 @@ function Receive-TelegramUpdates {
         throw "Telegram getUpdates failed."
     }
 
+    Save-ListenerHeartbeat
     return @($response.result)
 }
 
@@ -750,6 +680,9 @@ function Handle-TelegramUpdate {
             $count = Get-RequestedLogLineCount -Text $Update.message.text
             Send-TelegramMessage -ChatId $chatId -Message (New-LogsMessage -Count $count)
         }
+        "ping" {
+            Send-TelegramMessage -ChatId $chatId -Message (New-PingMessage)
+        }
         "unknown" {
             Send-TelegramMessage -ChatId $chatId -Message (New-HelpMessage)
         }
@@ -757,11 +690,12 @@ function Handle-TelegramUpdate {
 }
 
 Ensure-LocalFolders
-Import-DotEnv -Path $EnvFile
+Import-CodexDotEnv -Path $EnvFile
 $codexSettings = Resolve-CodexAppSettings
 $CodexAppUserModelId = $codexSettings.AppUserModelId
 $CodexProcessPathPattern = $codexSettings.ProcessPathPattern
-$MessageTitle = Get-EnvOrDefault -Name "CODEX_MONITOR_TITLE" -DefaultValue $MessageTitle
+$MessageTitle = Get-CodexMessageTitle
+$DeviceName = Get-CodexDeviceName
 
 if ($InitializeOffset) {
     Initialize-TelegramOffset
@@ -775,6 +709,7 @@ if ($null -eq $offset) {
 }
 
 Write-ListenerLog "Command listener started."
+Save-ListenerHeartbeat
 
 while ($true) {
     try {

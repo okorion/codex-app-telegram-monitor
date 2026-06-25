@@ -2,7 +2,9 @@
     [switch]$SkipConfigure,
     [switch]$SkipTelegramTest,
     [switch]$SkipDailyMonitor,
-    [switch]$SkipCommandListener
+    [switch]$SkipCommandListener,
+    [switch]$SkipEnvFileAcl,
+    [switch]$SkipBotCommandMenu
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,6 +36,18 @@ if (!(Test-Path -LiteralPath $envFile)) {
     throw "Codex Telegram .env is missing. Run configure-codex-telegram.ps1 first."
 }
 
+if (!$SkipEnvFileAcl) {
+    Invoke-Step -Name "Protect local .env ACL" -ScriptBlock {
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "protect_env_file.ps1")
+    }
+}
+
+if (!$SkipBotCommandMenu) {
+    Invoke-Step -Name "Register Telegram command menu" -ScriptBlock {
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "register_bot_commands.ps1")
+    }
+}
+
 if (!$SkipTelegramTest) {
     Invoke-Step -Name "Send Telegram test message" -ScriptBlock {
         powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "telegram-test.ps1")
@@ -48,7 +62,12 @@ if (!$SkipDailyMonitor) {
 
 if (!$SkipCommandListener) {
     Invoke-Step -Name "Install Telegram command listener" -ScriptBlock {
-        powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "install_command_listener_task.ps1")
+        powershell.exe `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File (Join-Path $PSScriptRoot "install_command_listener_task.ps1") `
+            -SkipEnvFileAcl `
+            -SkipBotCommandMenu
     }
 }
 

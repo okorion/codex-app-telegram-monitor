@@ -46,6 +46,7 @@ jobs:
             'gho_[A-Za-z0-9_]+',
             'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}',
             '[0-9]{8,}:[A-Za-z0-9_-]{20,}',
+            'TELEGRAM_(CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS)\s*=\s*-?[0-9]{5,}',
             'C:\\Users\\[^\\]+\\Documents\\Codex'
           )
           $files = git ls-files

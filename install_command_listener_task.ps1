@@ -1,4 +1,9 @@
-﻿$ErrorActionPreference = "Stop"
+﻿param(
+    [switch]$SkipEnvFileAcl,
+    [switch]$SkipBotCommandMenu
+)
+
+$ErrorActionPreference = "Stop"
 
 $taskName = "Codex Telegram Command Listener"
 $watchdogTaskName = "Codex Telegram Command Listener Watchdog"
@@ -9,6 +14,22 @@ $envFile = Join-Path $PSScriptRoot ".env"
 
 if (!(Test-Path -LiteralPath $envFile)) {
     throw "Codex Telegram .env is missing. Run configure-codex-telegram.ps1 first."
+}
+
+if (!$SkipEnvFileAcl) {
+    powershell.exe `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File (Join-Path $PSScriptRoot "protect_env_file.ps1") `
+        -EnvFile $envFile
+}
+
+if (!$SkipBotCommandMenu) {
+    powershell.exe `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File (Join-Path $PSScriptRoot "register_bot_commands.ps1") `
+        -EnvFile $envFile
 }
 
 powershell.exe `

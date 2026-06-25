@@ -8,7 +8,8 @@ The tool can:
 - Start Codex automatically at 09:00 if it is not running.
 - Listen for Telegram commands from authorized chats.
 - Start Codex remotely from a phone with `/codex_on`.
-- Report health, version, and recent listener logs through Telegram.
+- Report health, version, listener heartbeat, and recent listener logs through Telegram.
+- Register short Telegram bot commands for quick mobile use.
 
 It uses Telegram long polling. No inbound network port or webhook server is required.
 
@@ -34,7 +35,7 @@ Run the guided installer:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
 ```
 
-The installer configures Telegram when `.env` is missing, sends a test message, installs the daily monitor, installs the command listener, installs a listener watchdog, and runs `health-check.ps1`.
+The installer configures Telegram when `.env` is missing, protects the local `.env` ACL, registers the Telegram command menu, sends a test message, installs the daily monitor, installs the command listener, installs a listener watchdog, and runs `health-check.ps1`.
 
 Useful installer switches:
 
@@ -42,6 +43,8 @@ Useful installer switches:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipTelegramTest
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipDailyMonitor
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipCommandListener
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipEnvFileAcl
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipBotCommandMenu
 ```
 
 ## Manual Setup
@@ -76,6 +79,18 @@ Install the Telegram command listener and watchdog:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_command_listener_task.ps1
 ```
 
+Register or refresh the Telegram command menu:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register_bot_commands.ps1
+```
+
+Protect the local `.env` file ACL:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\protect_env_file.ps1
+```
+
 Check the setup:
 
 ```powershell
@@ -93,6 +108,7 @@ Send these messages to an authorized bot chat:
 /v
 /l
 /l 30
+/p
 /m
 ```
 
@@ -105,16 +121,19 @@ Full command names are also supported:
 /codex_version
 /codex_logs
 /codex_logs 30
+/ping
 /help
 ```
 
 `/codex_on` sends a start request first. If Codex was not running, the listener waits up to 60 seconds and then sends a final `OK` or `WARN` message.
 
-`/codex_health` reports bot, task scheduler, listener, watchdog, and offset-file status.
+`/codex_health` reports bot, task scheduler, listener, watchdog, offset-file, heartbeat, log, and `.env` ACL status.
 
 `/codex_version` reports Codex App detection details, package version when available, and running process paths.
 
 `/codex_logs` sends recent listener logs. The default is 20 lines. The accepted range is 5 to 50 lines. Token-like values are redacted before sending.
+
+`/ping` quickly confirms that the command listener is responding and reports the latest polling heartbeat.
 
 Short aliases:
 
@@ -124,6 +143,7 @@ Short aliases:
 /h = /codex_health
 /v = /codex_version
 /l = /codex_logs
+/p = /ping
 /m = /help
 ```
 
@@ -138,16 +158,35 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 TELEGRAM_PERSONAL_CHAT_ID=
 TELEGRAM_ALLOWED_CHAT_IDS=
+TELEGRAM_COMMAND_ALLOWED_CHAT_IDS=
 CODEX_MONITOR_TITLE=Codex app monitor test
+CODEX_DEVICE_NAME=auto
 CODEX_APP_USER_MODEL_ID=auto
 CODEX_PROCESS_PATH_PATTERN=auto
+CODEX_LOG_MAX_BYTES=1048576
+CODEX_LOG_KEEP_FILES=5
+CODEX_HEARTBEAT_STALE_SECONDS=120
 ```
 
 `TELEGRAM_ALLOWED_CHAT_IDS` accepts comma, semicolon, or whitespace separated chat IDs. When it is empty, the listener falls back to `TELEGRAM_PERSONAL_CHAT_ID` and `TELEGRAM_CHAT_ID`.
 
+`TELEGRAM_COMMAND_ALLOWED_CHAT_IDS` controls which chats may run commands. When it is empty, it falls back to `TELEGRAM_ALLOWED_CHAT_IDS`.
+
+`CODEX_DEVICE_NAME` appears in Telegram messages. Use a short friendly name when you run the monitor on more than one PC.
+
 When `CODEX_APP_USER_MODEL_ID=auto`, the listener tries to detect Codex with `Get-StartApps`. When detection fails, it falls back to `OpenAI.Codex_2p2nqsd0c76g0!App`.
 
 When `CODEX_PROCESS_PATH_PATTERN=auto`, the scripts use `*\OpenAI.Codex_*\app\Codex.exe`.
+
+`CODEX_LOG_MAX_BYTES` and `CODEX_LOG_KEEP_FILES` control local listener log rotation. The default keeps five rotated files after the current log reaches 1 MB.
+
+`CODEX_HEARTBEAT_STALE_SECONDS` controls when `/codex_health` reports the listener heartbeat as stale.
+
+## Multiple PCs
+
+Telegram `getUpdates` long polling is best used with one active PC per bot token. If you install this monitor on multiple PCs, create a separate Telegram bot for each PC, or ensure only one PC uses a given bot token at a time.
+
+Set a distinct `CODEX_DEVICE_NAME` on each PC so Telegram messages clearly show which computer handled the command.
 
 ## Scheduled Tasks
 
@@ -182,9 +221,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 - Do not commit `.env`.
 - Treat `TELEGRAM_BOT_TOKEN` and chat IDs as sensitive.
 - Use a dedicated Telegram bot for this automation.
+- Prefer one dedicated bot token per PC.
+- `protect_env_file.ps1` restricts `.env` ACL inheritance and grants access to the current user, SYSTEM, and local Administrators.
 - Rotate the bot token in `@BotFather` if it is ever exposed.
 - The listener uses Telegram long polling and does not expose a local HTTP server.
-- `/codex_logs` redacts token-like values before sending logs to Telegram.
+- `/codex_logs` redacts token-like values and common local user paths before sending logs to Telegram.
 
 ## Validation
 

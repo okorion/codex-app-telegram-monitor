@@ -6,169 +6,48 @@
 
 $ErrorActionPreference = "Stop"
 
-$CodexAppUserModelId = "OpenAI.Codex_2p2nqsd0c76g0!App"
-$CodexProcessPathPattern = "*\OpenAI.Codex_*\app\Codex.exe"
-$MessageTitle = "Codex app monitor test"
+. (Join-Path $PSScriptRoot "codex-monitor-common.ps1")
 
-function Import-DotEnv {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    if (!(Test-Path -LiteralPath $Path)) {
-        throw "Env file not found: $Path"
-    }
-
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        if ($line -notmatch '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
-            continue
-        }
-
-        $name = $matches[1]
-        $value = $matches[2].Trim()
-        if ($value.StartsWith('"') -and $value.EndsWith('"')) {
-            $value = $value.Substring(1, $value.Length - 2).Replace('\"', '"')
-        } elseif ($value.StartsWith("'") -and $value.EndsWith("'")) {
-            $value = $value.Substring(1, $value.Length - 2)
-        }
-
-        [Environment]::SetEnvironmentVariable($name, $value, "Process")
-    }
-}
-
-function Get-EnvOrDefault {
-    param(
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$DefaultValue
-    )
-
-    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return $DefaultValue
-    }
-
-    return $value
-}
-
-function Test-AutoConfigValue {
-    param([AllowNull()][string]$Value)
-
-    return [string]::IsNullOrWhiteSpace($Value) -or $Value.Trim().ToLowerInvariant() -eq "auto"
-}
-
-function ConvertTo-TelegramHtml {
-    param([AllowNull()][string]$Text)
-
-    if ($null -eq $Text) {
-        return ""
-    }
-
-    return $Text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")
-}
-
-function Get-CodexStartApp {
-    try {
-        return Get-StartApps |
-            Where-Object { $_.AppID -like "OpenAI.Codex*" -or $_.Name -like "*Codex*" } |
-            Select-Object -First 1
-    } catch {
-        return $null
-    }
-}
-
-function Resolve-CodexAppSettings {
-    $configuredAppId = [Environment]::GetEnvironmentVariable("CODEX_APP_USER_MODEL_ID", "Process")
-    $configuredPathPattern = [Environment]::GetEnvironmentVariable("CODEX_PROCESS_PATH_PATTERN", "Process")
-    $startApp = Get-CodexStartApp
-
-    if (Test-AutoConfigValue -Value $configuredAppId) {
-        if ($startApp -and ![string]::IsNullOrWhiteSpace($startApp.AppID)) {
-            $resolvedAppId = $startApp.AppID
-        } else {
-            $resolvedAppId = $CodexAppUserModelId
-        }
-    } else {
-        $resolvedAppId = $configuredAppId
-    }
-
-    if (Test-AutoConfigValue -Value $configuredPathPattern) {
-        $resolvedPathPattern = $CodexProcessPathPattern
-    } else {
-        $resolvedPathPattern = $configuredPathPattern
-    }
-
-    return @{
-        AppUserModelId = $resolvedAppId
-        ProcessPathPattern = $resolvedPathPattern
-    }
-}
-
-function Send-TelegramMessage {
+function Send-MonitorTelegramMessage {
     param([Parameter(Mandatory = $true)][string]$Message)
 
-    $token = [Environment]::GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "Process")
-    $chatId = [Environment]::GetEnvironmentVariable("TELEGRAM_PERSONAL_CHAT_ID", "Process")
-    if ([string]::IsNullOrWhiteSpace($chatId)) {
-        $chatId = [Environment]::GetEnvironmentVariable("TELEGRAM_CHAT_ID", "Process")
-    }
-
-    if ([string]::IsNullOrWhiteSpace($token) -or [string]::IsNullOrWhiteSpace($chatId)) {
-        throw "Telegram configuration is missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID."
-    }
-
-    if ($DryRun) {
-        Write-Output $Message
-        return
-    }
-
-    $payload = @{
-        chat_id = $chatId
-        text = $Message
-        parse_mode = "HTML"
-        disable_web_page_preview = $true
-    }
-
-    $uri = "https://api.telegram.org/bot$token/sendMessage"
-    Invoke-RestMethod -Method Post -Uri $uri -ContentType "application/json; charset=utf-8" -Body ($payload | ConvertTo-Json -Compress) | Out-Null
+    $chatId = Get-CodexNotificationChatId
+    Send-CodexTelegramMessage -ChatId $chatId -Message $Message -DryRun:$DryRun
 }
 
-function Get-CodexAppProcesses {
-    return Get-Process -Name Codex -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -like $CodexProcessPathPattern }
-}
-
-Import-DotEnv -Path $EnvFile
+Import-CodexDotEnv -Path $EnvFile
 $codexSettings = Resolve-CodexAppSettings
-$CodexAppUserModelId = $codexSettings.AppUserModelId
-$CodexProcessPathPattern = $codexSettings.ProcessPathPattern
-$MessageTitle = Get-EnvOrDefault -Name "CODEX_MONITOR_TITLE" -DefaultValue $MessageTitle
-
+$codexAppUserModelId = $codexSettings.AppUserModelId
+$codexProcessPathPattern = $codexSettings.ProcessPathPattern
+$messageTitle = Get-CodexMessageTitle
+$deviceName = Get-CodexDeviceName
 $checkedAt = Get-Date
 
 if ($TelegramTest) {
     $message = @(
-        "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+        "<b>$(ConvertTo-CodexTelegramHtml $messageTitle)</b>",
         "",
         "<b>알림 테스트: ✅ 정상</b>",
         "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $deviceName)",
         "결과: 전용 텔레그램 봇 연결 정상",
         "",
-        "Processed at: $(ConvertTo-TelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
+        "Processed at: $(ConvertTo-CodexTelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
     ) -join "`n"
 
-    Send-TelegramMessage -Message $message
+    Send-MonitorTelegramMessage -Message $message
     exit 0
 }
 
-$before = @(Get-CodexAppProcesses)
+$before = @(Get-CodexAppProcesses -ProcessPathPattern $codexProcessPathPattern)
 $wasRunning = $before.Count -gt 0
-$startAttempted = $false
 
 if (!$wasRunning) {
-    $startAttempted = $true
-    Start-Process explorer.exe "shell:AppsFolder\$CodexAppUserModelId"
+    Start-CodexApp -AppUserModelId $codexAppUserModelId
     Start-Sleep -Seconds 8
 }
 
-$after = @(Get-CodexAppProcesses)
+$after = @(Get-CodexAppProcesses -ProcessPathPattern $codexProcessPathPattern)
 $isRunning = $after.Count -gt 0
 
 if ($wasRunning) {
@@ -189,20 +68,21 @@ if ($wasRunning) {
 }
 
 $messageLines = @(
-    "<b>$(ConvertTo-TelegramHtml $MessageTitle)</b>",
+    "<b>$(ConvertTo-CodexTelegramHtml $messageTitle)</b>",
     "",
     "<b>점검 결과: $statusIcon $badge</b>",
     "대상: Codex App",
-    "앱 실행 상태: $(ConvertTo-TelegramHtml $appState)"
+    "PC: $(ConvertTo-CodexTelegramHtml $deviceName)",
+    "앱 실행 상태: $(ConvertTo-CodexTelegramHtml $appState)"
 )
 
 if (![string]::IsNullOrWhiteSpace($noticeLine)) {
     $messageLines += ""
-    $messageLines += "안내: $(ConvertTo-TelegramHtml $noticeLine)"
+    $messageLines += "안내: $(ConvertTo-CodexTelegramHtml $noticeLine)"
 }
 
 $messageLines += ""
-$messageLines += "Checked at: $(ConvertTo-TelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
+$messageLines += "Checked at: $(ConvertTo-CodexTelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
 
 if (!$isRunning) {
     $messageLines += ""
@@ -211,4 +91,4 @@ if (!$isRunning) {
 
 $message = $messageLines -join "`n"
 
-Send-TelegramMessage -Message $message
+Send-MonitorTelegramMessage -Message $message
