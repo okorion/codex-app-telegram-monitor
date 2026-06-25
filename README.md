@@ -1,5 +1,7 @@
 # Codex App Telegram Monitor
 
+[English](README.md) | [한국어](README.ko.md)
+
 Windows PowerShell scripts for managing the Codex desktop app through a dedicated Telegram bot.
 
 ![Codex App Telegram Monitor overview](assets/codex-app-telegram-monitor-overview.png)
