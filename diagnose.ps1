@@ -172,7 +172,9 @@ $detection = Get-CodexDetectionSummary -ProcessPathPattern $settings.ProcessPath
 $matchingProcessCount = $detection.MatchingProcessCount
 $logExists = Test-Path -LiteralPath $logFile
 $logSize = if ($logExists) { (Get-Item -LiteralPath $logFile).Length } else { 0 }
-$lastLogLines = if ($logExists) { @(Get-Content -LiteralPath $logFile -Tail 10 | ForEach-Object { ConvertTo-CodexRedactedText -Text $_ }) } else { @() }
+$recentLogRawLines = if ($logExists) { @(Get-Content -LiteralPath $logFile -Tail 50) } else { @() }
+$lastLogLines = if ($logExists) { @($recentLogRawLines | Select-Object -Last 10 | ForEach-Object { ConvertTo-CodexRedactedText -Text $_ }) } else { @() }
+$pollingConflictDetected = @($recentLogRawLines | Where-Object { Test-CodexTelegramConflictText -Text $_ }).Count -gt 0
 
 $rows = @()
 $rows += New-DiagnosticRow -Name "Tool version" -Status "OK" -Detail $toolVersion
@@ -191,6 +193,7 @@ $rows += Get-HeartbeatDiagnostic
 $rows += New-DiagnosticRow -Name "Codex StartApps" -Status $(if ($detection.StartAppCount -gt 0) { "OK" } else { "WARN" }) -Detail "후보=$($detection.StartAppCount)" -Fix $(if ($detection.StartAppCount -gt 0) { "" } else { "Codex 실행이 안 되면 CODEX_APP_USER_MODEL_ID를 수동 설정하세요." })
 $rows += New-DiagnosticRow -Name "Codex Appx package" -Status $(if ($detection.AppxPackageCount -gt 0) { "OK" } else { "WARN" }) -Detail "후보=$($detection.AppxPackageCount)"
 $rows += New-DiagnosticRow -Name "Codex process" -Status $(if ($matchingProcessCount -gt 0) { "OK" } else { "WARN" }) -Detail "일치=$matchingProcessCount; 전체Codex=$($detection.CodexProcessCount); 패턴=$($settings.ProcessPathPattern)" -Fix $(if ($matchingProcessCount -gt 0) { "" } else { "Codex를 시작하거나 CODEX_PROCESS_PATH_PATTERN을 수동 설정하세요." })
+$rows += New-DiagnosticRow -Name "Telegram polling conflict" -Status $(if ($pollingConflictDetected) { "WARN" } else { "OK" }) -Detail $(if ($pollingConflictDetected) { "최근 listener 로그에서 getUpdates conflict 감지" } else { "최근 로그에서 감지 안 됨" }) -Fix $(if ($pollingConflictDetected) { "같은 bot token으로 실행 중인 다른 PC 또는 listener를 중지하거나 PC마다 별도 bot token을 사용하세요." } else { "" })
 $rows += New-DiagnosticRow -Name "Listener log" -Status $(if ($logExists) { "OK" } else { "WARN" }) -Detail $(if ($logExists) { "$logSize bytes" } else { "없음" })
 
 $failed = @($rows | Where-Object { $_.Status -eq "FAIL" }).Count

@@ -26,6 +26,8 @@ The JSON output is also redacted.
 - Whether the Telegram bot received `/start`.
 - The output of `diagnose.ps1 -SupportBundle`.
 - Whether `/p`, `/s`, and `/o` were tested after install or update.
+- Whether `Telegram polling conflict` is `WARN`.
+- Whether another PC or listener uses the same bot token.
 
 ## Do Not Include
 

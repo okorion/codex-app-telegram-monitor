@@ -51,7 +51,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
 | `/l 30` | `/codex_logs 30` | 지정한 줄 수만큼 최근 로그를 표시합니다. 허용 범위는 5-50줄입니다. |
 | `/m` | `/help` | 사용 가능한 명령 목록을 표시합니다. |
 
-자연어에 가까운 일부 메시지도 지원합니다. 예를 들어 `codex 상태`, `codex 실행`, `코덱스 앱 켜줘` 같은 메시지를 인식합니다.
+개인 채팅에서는 자연어에 가까운 일부 메시지도 지원합니다. 예를 들어 `codex 상태`, `codex 실행`, `코덱스 앱 켜줘` 같은 메시지를 인식합니다. 그룹이나 supergroup에서는 일반 대화에 help가 나가지 않도록 `/` 명령 또는 bot mention이 있는 메시지에만 반응합니다.
 
 ## GUI 설정 도구
 
@@ -65,11 +65,13 @@ GUI에서 할 수 있는 일:
 
 - `Telegram bot token` 입력
 - 알림 chat ID, 명령 허용 chat ID, 실행 허용 chat ID 수정
+- Telegram `getUpdates`로 최근 chat ID 감지
+- GUI에서 Telegram 테스트 메시지 전송
 - PC 표시 이름과 메시지 제목 수정
 - `.env` 저장 및 ACL 보호
 - 진단 스크립트 실행
 
-주의: GUI는 chat ID를 자동 감지하지 않습니다. chat ID 자동 감지가 필요하면 `install_all.ps1` 또는 `configure-codex-telegram.ps1`을 사용하세요. GUI로 `.env`를 먼저 저장했다면 설치는 아래처럼 실행합니다.
+주의: chat ID 감지는 bot에게 `/start` 또는 메시지를 보낸 뒤 실행해야 합니다. 이미 command listener가 같은 bot token으로 실행 중이면 Telegram `409 Conflict`가 날 수 있으므로, 그 경우 listener 작업을 잠시 중지하거나 `install_all.ps1` 또는 `configure-codex-telegram.ps1`의 콘솔 감지를 사용하세요. GUI로 `.env`를 먼저 저장했다면 설치는 아래처럼 실행합니다.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
@@ -240,7 +242,7 @@ CODEX_HEARTBEAT_STALE_SECONDS=120
 
 ## 여러 PC에서 사용
 
-Telegram `getUpdates` long polling은 하나의 bot token을 하나의 active PC에서 사용하는 방식에 가장 잘 맞습니다. 여러 PC에 설치하려면 PC마다 별도 Telegram 봇을 만들거나, 하나의 bot token을 동시에 사용하는 PC가 하나만 되도록 관리하세요.
+Telegram `getUpdates` long polling은 하나의 bot token을 하나의 active PC에서 사용하는 방식에 가장 잘 맞습니다. 여러 PC에 설치하려면 PC마다 별도 Telegram 봇을 만들거나, 하나의 bot token을 동시에 사용하는 PC가 하나만 되도록 관리하세요. 같은 token으로 두 listener가 동시에 polling하면 Telegram `409 Conflict`가 발생할 수 있고, `/h`와 `diagnose.ps1`는 최근 listener 로그에서 이 충돌을 감지해 표시합니다.
 
 각 PC에 서로 다른 `CODEX_DEVICE_NAME`을 설정하면 Telegram 메시지에서 어떤 컴퓨터가 명령을 처리했는지 쉽게 구분할 수 있습니다.
 
@@ -300,7 +302,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 
 ## 릴리스
 
-GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP을 게시합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
+GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP을 게시합니다. Release notes는 `CHANGELOG.md`의 해당 version 섹션만 사용합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
 
 ## 검증
 

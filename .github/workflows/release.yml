@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 소스 체크아웃
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: version tag 검증
         shell: pwsh
@@ -34,10 +34,37 @@ jobs:
             throw "Release archive was not created."
           }
 
+      - name: release notes 생성
+        shell: pwsh
+        run: |
+          $version = $env:PACKAGE_VERSION
+          $lines = Get-Content -LiteralPath .\CHANGELOG.md -Encoding UTF8
+          $start = $null
+          for ($index = 0; $index -lt $lines.Count; $index++) {
+            if ($lines[$index] -match "^##\s+$([regex]::Escape($version))(\s+-.*)?$") {
+              $start = $index
+              break
+            }
+          }
+          if ($null -eq $start) {
+            throw "CHANGELOG.md does not contain a section for version $version."
+          }
+
+          $end = $lines.Count
+          for ($index = $start + 1; $index -lt $lines.Count; $index++) {
+            if ($lines[$index] -match "^##\s+") {
+              $end = $index
+              break
+            }
+          }
+
+          $notes = @($lines[$start..($end - 1)])
+          $notes | Set-Content -LiteralPath .\RELEASE_NOTES.md -Encoding UTF8
+
       - name: GitHub Release 게시
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $archive = "codex-app-telegram-monitor-$env:PACKAGE_VERSION.zip"
-          gh release create $env:GITHUB_REF_NAME $archive --title $env:GITHUB_REF_NAME --notes-file CHANGELOG.md
+          gh release create $env:GITHUB_REF_NAME $archive --title $env:GITHUB_REF_NAME --notes-file RELEASE_NOTES.md

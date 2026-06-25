@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: 소스 체크아웃
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: PowerShell 스크립트 parse 확인
         shell: pwsh

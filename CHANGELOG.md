@@ -2,6 +2,15 @@
 
 Codex App Telegram Monitor의 주요 변경 사항을 기록합니다.
 
+## 0.3.0 - 2026-06-25
+
+- GitHub Actions checkout을 v5로 올려 Node.js 20 deprecation 경고를 제거했습니다.
+- GitHub Release notes가 전체 changelog 대신 현재 tag version 섹션만 사용하도록 개선했습니다.
+- Telegram 그룹 채팅에서는 `/` 명령 또는 bot mention이 있는 메시지에만 반응하도록 변경해 일반 대화에 help 메시지가 나가는 일을 줄였습니다.
+- Telegram `409 Conflict` / `getUpdates` polling 충돌을 listener 로그, `/h`, `diagnose.ps1`에서 더 명확히 진단하도록 개선했습니다.
+- GUI 설정 도구에 chat ID 감지와 Telegram 테스트 메시지 전송 버튼을 추가했습니다.
+- 명령 파싱, 그룹 메시지 타깃 판별, polling conflict 감지, redaction, `/o` dry-run 흐름 테스트를 추가했습니다.
+
 ## 0.2.0 - 2026-06-25
 
 - 한 번의 명령으로 repository update, 예약 작업 갱신, listener 재시작, 진단을 실행하는 `update.ps1`를 추가했습니다.

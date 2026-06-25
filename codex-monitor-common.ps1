@@ -129,6 +129,121 @@ function Split-CodexChatIds {
     return @($Value -split "[,;\s]+" | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
 }
 
+function Get-CodexTelegramCommandType {
+    param([AllowNull()][string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return "ignore"
+    }
+
+    $trimmed = $Text.Trim()
+    $lower = $trimmed.ToLowerInvariant()
+    $lower = $lower -replace '^/([a-z0-9_]+)@[a-z0-9_]+', '/$1'
+
+    if ($lower -match '^/(start|help|m)$' -or
+        $lower -match '^/(start|help|m)@[a-z0-9_]+$') {
+        return "help"
+    }
+
+    if ($lower -match '^/(codex_on|codex_start|startcodex|o)$' -or
+        $lower -match '^/(codex_on|codex_start|startcodex|o)@[a-z0-9_]+$' -or
+        $lower -in @("codex on", "codex start", "codex run", "codex 실행") -or
+        $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(켜|켜기|실행|시작)(줘|주세요|해줘|해주세요)?$') {
+        return "start"
+    }
+
+    if ($lower -match '^/(codex_status|status|s)$' -or
+        $lower -match '^/(codex_status|status|s)@[a-z0-9_]+$' -or
+        $lower -in @("codex status", "codex 상태") -or
+        $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(상태|확인|체크)$') {
+        return "status"
+    }
+
+    if ($lower -match '^/(codex_health|health|h)$' -or
+        $lower -match '^/(codex_health|health|h)@[a-z0-9_]+$' -or
+        $lower -in @("codex health", "codex 헬스", "codex 점검")) {
+        return "health"
+    }
+
+    if ($lower -match '^/(codex_version|version|v)$' -or
+        $lower -match '^/(codex_version|version|v)@[a-z0-9_]+$' -or
+        $lower -in @("codex version", "codex 버전")) {
+        return "version"
+    }
+
+    if ($lower -match '^/(codex_logs|logs|l)(\s+\d+)?$' -or
+        $lower -match '^/(codex_logs|logs|l)@[a-z0-9_]+(\s+\d+)?$') {
+        return "logs"
+    }
+
+    if ($lower -match '^/(ping|p)$' -or
+        $lower -match '^/(ping|p)@[a-z0-9_]+$') {
+        return "ping"
+    }
+
+    return "unknown"
+}
+
+function Test-CodexTelegramMessageTargetsBot {
+    param(
+        [AllowNull()][string]$Text,
+        [AllowNull()][string]$BotUsername
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+
+    $trimmed = $Text.Trim()
+    if ($trimmed.StartsWith("/")) {
+        return $true
+    }
+
+    if (![string]::IsNullOrWhiteSpace($BotUsername)) {
+        $escapedUsername = [regex]::Escape($BotUsername.TrimStart("@"))
+        return $trimmed -match "(?i)(^|\s)@$escapedUsername(\b|$)"
+    }
+
+    return $false
+}
+
+function Test-CodexTelegramConflictText {
+    param([AllowNull()][string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+
+    return $Text -match '(?i)\b409\b.*\bconflict\b' -or
+        $Text -match '(?i)terminated by other getUpdates request' -or
+        ($Text -match '(?i)\bconflict\b' -and $Text -match '(?i)getUpdates|long polling|polling')
+}
+
+function Test-CodexTelegramConflictError {
+    param([AllowNull()]$ErrorRecord)
+
+    if ($null -eq $ErrorRecord) {
+        return $false
+    }
+
+    $parts = New-Object System.Collections.Generic.List[string]
+    $exception = if ($ErrorRecord -is [System.Management.Automation.ErrorRecord]) { $ErrorRecord.Exception } else { $ErrorRecord }
+    if ($exception) {
+        $parts.Add([string]$exception.Message) | Out-Null
+        $response = $exception.Response
+        if ($response -and $response.StatusCode) {
+            $statusCode = [int]$response.StatusCode
+            if ($statusCode -eq 409) {
+                return $true
+            }
+            $parts.Add([string]$response.StatusCode) | Out-Null
+        }
+    }
+
+    $parts.Add([string]$ErrorRecord) | Out-Null
+    return Test-CodexTelegramConflictText -Text ($parts -join "`n")
+}
+
 function Get-CodexDeviceName {
     $configured = [Environment]::GetEnvironmentVariable("CODEX_DEVICE_NAME", "Process")
     if (Test-CodexAutoConfigValue -Value $configured) {

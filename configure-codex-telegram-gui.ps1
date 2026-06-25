@@ -50,11 +50,140 @@ function Add-Field {
     return $textBox
 }
 
+function Show-GuiException {
+    param(
+        [Parameter(Mandatory = $true)]$ErrorRecord,
+        [Parameter(Mandatory = $true)][string]$Title
+    )
+
+    if (Test-CodexTelegramConflictError -ErrorRecord $ErrorRecord) {
+        [System.Windows.Forms.MessageBox]::Show(
+            "같은 bot token으로 다른 PC 또는 listener가 Telegram polling 중입니다.`n다른 listener를 중지한 뒤 다시 시도하거나 PC마다 별도 bot token을 사용하세요.",
+            $Title
+        ) | Out-Null
+        return
+    }
+
+    [System.Windows.Forms.MessageBox]::Show($ErrorRecord.Exception.Message, $Title) | Out-Null
+}
+
+function Get-GuiBotToken {
+    $token = $botToken.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw "Telegram bot token은 필수입니다."
+    }
+
+    return $token
+}
+
+function Get-LatestTelegramChatFromUpdates {
+    param([Parameter(Mandatory = $true)][string]$Token)
+
+    $response = Invoke-CodexTelegramApi `
+        -Token $Token `
+        -MethodName "getUpdates" `
+        -Payload @{ timeout = 1; allowed_updates = @("message", "my_chat_member") } `
+        -TimeoutSec 10
+
+    if (!$response.ok) {
+        throw "Telegram getUpdates 응답이 올바르지 않습니다."
+    }
+
+    $candidates = @(
+        foreach ($update in @($response.result)) {
+            $chat = $null
+            if ($update.message -and $update.message.chat) {
+                $chat = $update.message.chat
+            } elseif ($update.my_chat_member -and $update.my_chat_member.chat) {
+                $chat = $update.my_chat_member.chat
+            }
+
+            if ($chat) {
+                $displayName = @($chat.title, $chat.username, $chat.first_name, $chat.last_name) |
+                    Where-Object { ![string]::IsNullOrWhiteSpace([string]$_) } |
+                    Select-Object -First 1
+
+                [PSCustomObject]@{
+                    Id = [string]$chat.id
+                    Type = [string]$chat.type
+                    Name = [string]$displayName
+                    UpdateId = [int64]$update.update_id
+                }
+            }
+        }
+    )
+
+    if ($candidates.Count -eq 0) {
+        throw "chat ID를 찾지 못했습니다. Telegram에서 bot에게 /start 또는 메시지를 보낸 뒤 다시 시도하세요."
+    }
+
+    return $candidates | Sort-Object UpdateId -Descending | Select-Object -First 1
+}
+
+function Set-DetectedChatFields {
+    param([Parameter(Mandatory = $true)]$DetectedChat)
+
+    if ([string]::IsNullOrWhiteSpace($chatId.Text)) {
+        $chatId.Text = $DetectedChat.Id
+    }
+    if ([string]::IsNullOrWhiteSpace($personalChatId.Text) -and
+        ([string]::IsNullOrWhiteSpace($DetectedChat.Type) -or $DetectedChat.Type -eq "private")) {
+        $personalChatId.Text = $DetectedChat.Id
+    }
+    if ([string]::IsNullOrWhiteSpace($allowedChats.Text)) {
+        $allowedChats.Text = $DetectedChat.Id
+    }
+    if ([string]::IsNullOrWhiteSpace($commandChats.Text)) {
+        $commandChats.Text = $DetectedChat.Id
+    }
+    if ([string]::IsNullOrWhiteSpace($startChats.Text)) {
+        $startChats.Text = $DetectedChat.Id
+    }
+}
+
+function Send-GuiTestMessage {
+    $token = Get-GuiBotToken
+    $targetChatId = if (![string]::IsNullOrWhiteSpace($personalChatId.Text)) {
+        $personalChatId.Text.Trim()
+    } else {
+        $chatId.Text.Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($targetChatId)) {
+        throw "테스트 메시지를 보낼 chat ID가 필요합니다."
+    }
+
+    $messageTitle = if ([string]::IsNullOrWhiteSpace($title.Text)) { "Codex app monitor test" } else { $title.Text.Trim() }
+    $displayDeviceName = if ([string]::IsNullOrWhiteSpace($deviceName.Text) -or $deviceName.Text.Trim().ToLowerInvariant() -eq "auto") {
+        if (![string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) { $env:COMPUTERNAME } else { "Windows PC" }
+    } else {
+        $deviceName.Text.Trim()
+    }
+    $processedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+
+    $message = @(
+        "<b>$(ConvertTo-CodexTelegramHtml $messageTitle)</b>",
+        "",
+        "<b>GUI 테스트: ✅ OK</b>",
+        "대상: Codex App",
+        "PC: $(ConvertTo-CodexTelegramHtml $displayDeviceName)",
+        "결과: GUI에서 Telegram 메시지 전송 성공",
+        "",
+        "Processed at: $(ConvertTo-CodexTelegramHtml $processedAt)"
+    ) -join "`n"
+
+    Invoke-CodexTelegramApi -Token $token -MethodName "sendMessage" -Payload @{
+        chat_id = $targetChatId
+        text = $message
+        parse_mode = "HTML"
+        disable_web_page_preview = $true
+    } -TimeoutSec 15 | Out-Null
+}
+
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Codex App Telegram Monitor 설정"
 $form.StartPosition = "CenterScreen"
-$form.Width = 640
-$form.Height = 430
+$form.Width = 700
+$form.Height = 470
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 
@@ -74,17 +203,31 @@ $saveButton.Top = 330
 $saveButton.Width = 110
 $form.Controls.Add($saveButton)
 
+$detectChatButton = New-Object System.Windows.Forms.Button
+$detectChatButton.Text = "chat ID 감지"
+$detectChatButton.Left = 332
+$detectChatButton.Top = 330
+$detectChatButton.Width = 120
+$form.Controls.Add($detectChatButton)
+
+$testButton = New-Object System.Windows.Forms.Button
+$testButton.Text = "테스트 전송"
+$testButton.Left = 464
+$testButton.Top = 330
+$testButton.Width = 110
+$form.Controls.Add($testButton)
+
 $diagnoseButton = New-Object System.Windows.Forms.Button
 $diagnoseButton.Text = "진단 실행"
-$diagnoseButton.Left = 332
-$diagnoseButton.Top = 330
+$diagnoseButton.Left = 210
+$diagnoseButton.Top = 370
 $diagnoseButton.Width = 120
 $form.Controls.Add($diagnoseButton)
 
 $closeButton = New-Object System.Windows.Forms.Button
 $closeButton.Text = "닫기"
-$closeButton.Left = 464
-$closeButton.Top = 330
+$closeButton.Left = 342
+$closeButton.Top = 370
 $closeButton.Width = 110
 $form.Controls.Add($closeButton)
 
@@ -127,7 +270,30 @@ $saveButton.Add_Click({
 
         [System.Windows.Forms.MessageBox]::Show(".env를 저장하고 ACL을 보호했습니다.", "Codex App Telegram Monitor") | Out-Null
     } catch {
-        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "저장 실패") | Out-Null
+        Show-GuiException -ErrorRecord $_ -Title "저장 실패"
+    }
+})
+
+$detectChatButton.Add_Click({
+    try {
+        $detectedChat = Get-LatestTelegramChatFromUpdates -Token (Get-GuiBotToken)
+        Set-DetectedChatFields -DetectedChat $detectedChat
+        $nameLine = if ([string]::IsNullOrWhiteSpace($detectedChat.Name)) { "" } else { "`n이름: $($detectedChat.Name)" }
+        [System.Windows.Forms.MessageBox]::Show(
+            "chat ID 감지 완료`nchat ID: $($detectedChat.Id)`nType: $($detectedChat.Type)$nameLine",
+            "Codex App Telegram Monitor"
+        ) | Out-Null
+    } catch {
+        Show-GuiException -ErrorRecord $_ -Title "chat ID 감지 실패"
+    }
+})
+
+$testButton.Add_Click({
+    try {
+        Send-GuiTestMessage
+        [System.Windows.Forms.MessageBox]::Show("테스트 메시지를 전송했습니다.", "Codex App Telegram Monitor") | Out-Null
+    } catch {
+        Show-GuiException -ErrorRecord $_ -Title "테스트 전송 실패"
     }
 })
 
@@ -140,7 +306,7 @@ $diagnoseButton.Add_Click({
             "-File", (Join-Path $PSScriptRoot "diagnose.ps1")
         )
     } catch {
-        [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, "진단 실행 실패") | Out-Null
+        Show-GuiException -ErrorRecord $_ -Title "진단 실행 실패"
     }
 })
 

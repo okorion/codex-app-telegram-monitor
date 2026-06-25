@@ -51,7 +51,7 @@ Send these commands in an authorized bot chat:
 | `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
 | `/m` | `/help` | Show the command list. |
 
-Some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents.
+In private chats, some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents. In groups and supergroups, the listener responds only to `/` commands or messages that mention the bot, so ordinary group conversation does not trigger help replies.
 
 ## GUI Settings Tool
 
@@ -65,11 +65,13 @@ The GUI can:
 
 - Save `Telegram bot token`
 - Edit notification, command-allowed, and start-allowed chat IDs
+- Detect the latest chat ID through Telegram `getUpdates`
+- Send a Telegram test message from the GUI
 - Edit device name and message title
 - Save `.env` and protect its ACL
 - Run diagnostics
 
-The GUI does not auto-detect chat IDs. Use `install_all.ps1` or `configure-codex-telegram.ps1` when you need automatic chat ID detection. If you saved `.env` from the GUI first, run:
+Chat ID detection requires sending `/start` or another message to the bot first. If the command listener is already running with the same bot token, Telegram may return `409 Conflict`; in that case, temporarily stop the listener task or use the console detection flow in `install_all.ps1` or `configure-codex-telegram.ps1`. If you saved `.env` from the GUI first, run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
@@ -238,7 +240,7 @@ When `CODEX_PROCESS_PATH_PATTERN=auto`, the scripts use `*\OpenAI.Codex_*\app\Co
 
 ## Multiple PCs
 
-Telegram `getUpdates` long polling is best used with one active PC per bot token. If you install this monitor on multiple PCs, create a separate Telegram bot for each PC, or ensure only one PC uses a given bot token at a time.
+Telegram `getUpdates` long polling is best used with one active PC per bot token. If you install this monitor on multiple PCs, create a separate Telegram bot for each PC, or ensure only one PC uses a given bot token at a time. If two listeners poll with the same token, Telegram can return `409 Conflict`; `/h` and `diagnose.ps1` surface this when it appears in recent listener logs.
 
 Set a distinct `CODEX_DEVICE_NAME` on each PC so Telegram messages clearly show which computer handled the command.
 
@@ -298,7 +300,7 @@ For a fuller security model, see [SECURITY.en.md](SECURITY.en.md).
 
 ## Releases
 
-GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. See [RELEASE.en.md](RELEASE.en.md).
+GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive. Release notes use only the matching version section from `CHANGELOG.md`. See [RELEASE.en.md](RELEASE.en.md).
 
 ## Validation
 

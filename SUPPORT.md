@@ -25,6 +25,8 @@ JSON 출력도 redaction됩니다.
 - Codex App을 수동으로 열 수 있는지 여부
 - Telegram bot에게 `/start`를 보냈는지 여부
 - 설치 또는 업데이트 후 `/p`, `/s`, `/o`를 테스트했는지 여부
+- `Telegram polling conflict`가 `WARN`인지 여부
+- 같은 bot token을 쓰는 다른 PC 또는 listener가 있는지 여부
 - `diagnose.ps1 -SupportBundle` 출력
 
 ## 포함하지 말아야 할 정보

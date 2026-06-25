@@ -4,7 +4,8 @@
     [int]$TelegramTimeoutSeconds = 25,
     [switch]$Once,
     [switch]$InitializeOffset,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$LoadOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +25,8 @@ $CodexAppUserModelId = $script:CodexDefaultAppUserModelId
 $CodexProcessPathPattern = $script:CodexDefaultProcessPathPattern
 $MessageTitle = $script:CodexDefaultMessageTitle
 $DeviceName = "Windows PC"
+$BotUsername = ""
+$script:LastPollingConflictLoggedAt = $null
 
 function Ensure-LocalFolders {
     Ensure-CodexDirectory -Path $StateDir
@@ -287,6 +290,17 @@ function ConvertTo-HeartbeatSummary {
     return "Listener heartbeat: $icon $state, $($Heartbeat.TimestampText) ($($Heartbeat.AgeText))"
 }
 
+function Test-RecentPollingConflict {
+    if (!(Test-Path -LiteralPath $LogFile)) {
+        return $false
+    }
+
+    return @(
+        Get-Content -LiteralPath $LogFile -Tail 50 -ErrorAction SilentlyContinue |
+            Where-Object { Test-CodexTelegramConflictText -Text $_ }
+    ).Count -gt 0
+}
+
 function New-HealthMessage {
     $tokenPresent = ![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", "Process"))
     $allowedChatIds = @(Get-CodexAllowedChatIds)
@@ -301,6 +315,7 @@ function New-HealthMessage {
     $envProtected = Test-CodexEnvFileProtected -Path $EnvFile
     $logFileExists = Test-Path -LiteralPath $LogFile
     $logFileSize = if ($logFileExists) { (Get-Item -LiteralPath $LogFile).Length } else { 0 }
+    $pollingConflict = Test-RecentPollingConflict
     $heartbeatOk = $heartbeat.Exists -and $heartbeat.Fresh
     $overallOk = $tokenPresent -and
         $allowedChatIds.Count -gt 0 -and
@@ -314,7 +329,8 @@ function New-HealthMessage {
         $listenerTask.UsesEnvFile -and
         $watchdogTask.Exists -and
         $watchdogTask.UsesEnvFile -and
-        $heartbeatOk
+        $heartbeatOk -and
+        !$pollingConflict
     $now = Get-Date
 
     return @(
@@ -334,6 +350,7 @@ function New-HealthMessage {
         (ConvertTo-TaskSummary -Label "Watchdog" -Task $watchdogTask),
         "Offset file: $(ConvertTo-StatusIcon -Value $offsetFileExists) $(if ($offsetFileExists) { "있음" } else { "없음" })",
         (ConvertTo-HeartbeatSummary -Heartbeat $heartbeat),
+        "Polling conflict: $(ConvertTo-StatusIcon -Value (!$pollingConflict)) $(if ($pollingConflict) { "최근 감지됨" } else { "없음" })",
         "Log file: $(ConvertTo-StatusIcon -Value $logFileExists) $(if ($logFileExists) { "$logFileSize bytes" } else { "없음" })",
         "",
         "Processed at: $(ConvertTo-CodexTelegramHtml $now.ToString("yyyy-MM-dd HH:mm:ss"))"
@@ -544,56 +561,38 @@ function New-HelpMessage {
 function Get-CommandType {
     param([AllowNull()][string]$Text)
 
-    if ([string]::IsNullOrWhiteSpace($Text)) {
-        return "ignore"
+    return Get-CodexTelegramCommandType -Text $Text
+}
+
+function Get-BotUsername {
+    try {
+        $botInfo = Invoke-CodexTelegramApi -MethodName "getMe" -Payload @{} -TimeoutSec 15
+        if ($botInfo.ok -and $botInfo.result -and ![string]::IsNullOrWhiteSpace($botInfo.result.username)) {
+            return [string]$botInfo.result.username
+        }
+    } catch {
+        Write-ListenerLog "Bot username 확인 실패: $($_.Exception.Message)"
     }
 
-    $trimmed = $Text.Trim()
-    $lower = $trimmed.ToLowerInvariant()
-    $lower = $lower -replace '^/([a-z0-9_]+)@[a-z0-9_]+', '/$1'
+    return ""
+}
 
-    if ($lower -match '^/(start|help|m)$' -or
-        $lower -match '^/(start|help|m)@[a-z0-9_]+$') {
-        return "help"
+function Get-PollingFailureRetryDelaySeconds {
+    param([Parameter(Mandatory = $true)]$ErrorRecord)
+
+    if (Test-CodexTelegramConflictError -ErrorRecord $ErrorRecord) {
+        $now = Get-Date
+        if ($null -eq $script:LastPollingConflictLoggedAt -or
+            (($now - $script:LastPollingConflictLoggedAt).TotalMinutes -ge 5)) {
+            Write-ListenerLog "Telegram polling conflict: 같은 bot token으로 다른 PC 또는 listener가 getUpdates를 사용 중입니다. active PC마다 별도 bot token을 쓰거나 다른 listener를 중지하세요."
+            $script:LastPollingConflictLoggedAt = $now
+        }
+
+        return 30
     }
 
-    if ($lower -match '^/(codex_on|codex_start|startcodex|o)$' -or
-        $lower -match '^/(codex_on|codex_start|startcodex|o)@[a-z0-9_]+$' -or
-        $lower -in @("codex on", "codex start", "codex run", "codex 실행") -or
-        $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(켜|켜기|실행|시작)(해줘|해주세요)?$') {
-        return "start"
-    }
-
-    if ($lower -match '^/(codex_status|status|s)$' -or
-        $lower -match '^/(codex_status|status|s)@[a-z0-9_]+$' -or
-        $lower -in @("codex status", "codex 상태") -or
-        $trimmed -match '^(코덱스|Codex|codex)( 앱)?\s*(상태|확인|체크)$') {
-        return "status"
-    }
-
-    if ($lower -match '^/(codex_health|health|h)$' -or
-        $lower -match '^/(codex_health|health|h)@[a-z0-9_]+$' -or
-        $lower -in @("codex health", "codex 헬스", "codex 점검")) {
-        return "health"
-    }
-
-    if ($lower -match '^/(codex_version|version|v)$' -or
-        $lower -match '^/(codex_version|version|v)@[a-z0-9_]+$' -or
-        $lower -in @("codex version", "codex 버전")) {
-        return "version"
-    }
-
-    if ($lower -match '^/(codex_logs|logs|l)(\s+\d+)?$' -or
-        $lower -match '^/(codex_logs|logs|l)@[a-z0-9_]+(\s+\d+)?$') {
-        return "logs"
-    }
-
-    if ($lower -match '^/(ping|p)$' -or
-        $lower -match '^/(ping|p)@[a-z0-9_]+$') {
-        return "ping"
-    }
-
-    return "unknown"
+    Write-ListenerLog "Polling 실패: $($ErrorRecord.Exception.Message)"
+    return 10
 }
 
 function Read-Offset {
@@ -672,9 +671,17 @@ function Handle-TelegramUpdate {
         return
     }
 
-    $chatId = [string]$Update.message.chat.id
+    $chat = $Update.message.chat
+    $chatId = [string]$chat.id
     if (!(Test-AllowedChatId -ChatId $chatId)) {
         Write-ListenerLog "허용되지 않은 채팅의 메시지를 무시했습니다."
+        return
+    }
+
+    $chatType = [string]$chat.type
+    $isPrivateChat = [string]::IsNullOrWhiteSpace($chatType) -or $chatType -eq "private"
+    if (!$isPrivateChat -and !(Test-CodexTelegramMessageTargetsBot -Text $Update.message.text -BotUsername $BotUsername)) {
+        Write-ListenerLog "그룹 채팅의 일반 메시지를 무시했습니다."
         return
     }
 
@@ -715,6 +722,10 @@ function Handle-TelegramUpdate {
     }
 }
 
+if ($LoadOnly) {
+    return
+}
+
 Ensure-LocalFolders
 Import-CodexDotEnv -Path $EnvFile
 $codexSettings = Resolve-CodexAppSettings
@@ -722,6 +733,7 @@ $CodexAppUserModelId = $codexSettings.AppUserModelId
 $CodexProcessPathPattern = $codexSettings.ProcessPathPattern
 $MessageTitle = Get-CodexMessageTitle
 $DeviceName = Get-CodexDeviceName
+$BotUsername = Get-BotUsername
 
 if ($InitializeOffset) {
     Initialize-TelegramOffset
@@ -751,12 +763,12 @@ while ($true) {
             }
         }
     } catch {
-        Write-ListenerLog "Polling 실패: $($_.Exception.Message)"
+        $retryDelaySeconds = Get-PollingFailureRetryDelaySeconds -ErrorRecord $_
         if ($Once) {
             throw
         }
 
-        Start-Sleep -Seconds 10
+        Start-Sleep -Seconds $retryDelaySeconds
     }
 
     if ($Once) {

@@ -32,5 +32,6 @@ redaction된 출력을 여기에 붙여 주세요.
 
 - listener task 상태가 `Running`인가요?
 - `/h` 또는 `diagnose.ps1`에서 heartbeat가 `Fresh`인가요?
+- `Telegram polling conflict`가 `WARN`인가요? 그렇다면 같은 bot token을 쓰는 다른 PC 또는 listener가 있나요?
 - 명령을 보낸 채팅이 `TELEGRAM_COMMAND_ALLOWED_CHAT_IDS`에 포함되어 있나요?
 - `/o` 문제라면 `TELEGRAM_START_ALLOWED_CHAT_IDS`도 확인했나요?

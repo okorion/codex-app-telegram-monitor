@@ -53,6 +53,39 @@
         $commands | Should -Contain "m"
     }
 
+    It "maps short, full, and natural-language Telegram commands" {
+        Get-CodexTelegramCommandType -Text "/o" | Should -Be "start"
+        Get-CodexTelegramCommandType -Text "/codex_status" | Should -Be "status"
+        Get-CodexTelegramCommandType -Text "/l 30" | Should -Be "logs"
+        Get-CodexTelegramCommandType -Text "코덱스 앱 켜줘" | Should -Be "start"
+        Get-CodexTelegramCommandType -Text "codex 점검" | Should -Be "health"
+        Get-CodexTelegramCommandType -Text "hello" | Should -Be "unknown"
+    }
+
+    It "detects whether group messages explicitly target the bot" {
+        Test-CodexTelegramMessageTargetsBot -Text "/s" -BotUsername "codex_manager_bot" | Should -BeTrue
+        Test-CodexTelegramMessageTargetsBot -Text "/s@codex_manager_bot" -BotUsername "codex_manager_bot" | Should -BeTrue
+        Test-CodexTelegramMessageTargetsBot -Text "codex status @codex_manager_bot" -BotUsername "codex_manager_bot" | Should -BeTrue
+        Test-CodexTelegramMessageTargetsBot -Text "codex status" -BotUsername "codex_manager_bot" | Should -BeFalse
+    }
+
+    It "detects Telegram getUpdates conflict text" {
+        Test-CodexTelegramConflictText -Text "Conflict: terminated by other getUpdates request; make sure that only one bot instance is running" | Should -BeTrue
+        Test-CodexTelegramConflictText -Text "409 Conflict: another polling request is active" | Should -BeTrue
+        Test-CodexTelegramConflictText -Text "The operation timed out" | Should -BeFalse
+    }
+
+    It "redacts common local user paths" {
+        $appDataPath = "C:\Users\alice\AppData\Local\Temp\sample.txt"
+        $codexPath = "C:\Users\alice\Documents" + "\Codex\repo"
+        $text = "log=$appDataPath repo=$codexPath"
+        $redacted = ConvertTo-CodexRedactedText -Text $text
+
+        $redacted | Should -Not -Match "alice"
+        $redacted | Should -Match "<local-appdata-path>"
+        $redacted | Should -Match "<local-codex-path>"
+    }
+
     It "falls back start permissions to command permissions" {
         [Environment]::SetEnvironmentVariable("TELEGRAM_CHAT_ID", "111", "Process")
         [Environment]::SetEnvironmentVariable("TELEGRAM_ALLOWED_CHAT_IDS", "222", "Process")
@@ -69,5 +102,39 @@
         [Environment]::SetEnvironmentVariable("TELEGRAM_START_ALLOWED_CHAT_IDS", "444 555", "Process")
 
         Get-CodexStartAllowedChatIds | Should -Be @("444", "555")
+    }
+}
+
+Describe "Codex Telegram listener helpers" {
+    BeforeAll {
+        $script:repoRoot = Split-Path -Parent $PSScriptRoot
+        . (Join-Path $script:repoRoot "codex-telegram-command-listener.ps1") -LoadOnly -DryRun
+    }
+
+    It "sends a dry-run result for the remote start flow" {
+        $script:sentMessages = @()
+
+        function Get-CodexAppProcessList {
+            return @()
+        }
+
+        function Send-TelegramMessage {
+            param(
+                [Parameter(Mandatory = $true)][string]$ChatId,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            $script:sentMessages += [PSCustomObject]@{
+                ChatId = $ChatId
+                Message = $Message
+            }
+        }
+
+        Invoke-CodexRemoteStart -ChatId "111"
+
+        $script:sentMessages.Count | Should -Be 1
+        $script:sentMessages[0].ChatId | Should -Be "111"
+        $script:sentMessages[0].Message | Should -Match "DRY-RUN"
+        $script:sentMessages[0].Message | Should -Match "현재 실행 상태"
     }
 }
