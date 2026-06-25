@@ -130,6 +130,30 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\protect_env_file.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 ```
 
+지원 요청용 진단 리포트 실행:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
+```
+
+GitHub issue를 만들 때는 `-SupportBundle` 출력을 사용하세요. 출력에는 Telegram token, chat ID, 일반적인 로컬 사용자 경로가 redaction됩니다.
+
+## 업데이트
+
+기존 clone을 업데이트합니다.
+
+```powershell
+git pull
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
+```
+
+command listener가 이미 설치되어 있어도 기존 `.env`는 유지하고 예약 작업을 새 코드 기준으로 갱신합니다.
+
+## Releases
+
+GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. 현재 저장소는 release 흐름을 문서화하지만, 실제 release publish는 별도 maintainer 작업으로 남겨둡니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
+
 ## Telegram 명령어
 
 허용된 bot 채팅에 아래 메시지를 보냅니다.
@@ -191,6 +215,39 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 /l = /codex_logs
 /p = /ping
 /m = /help
+```
+
+## Telegram 메시지 예시
+
+상태 OK:
+
+```text
+Codex app monitor test
+
+상태 확인 결과: ✅ OK
+대상: Codex App
+PC: DESKTOP-NAME
+현재 실행 상태: 실행 중
+프로세스: 1개
+
+Processed at: 2026-06-25 12:00:00
+```
+
+원격 실행 흐름:
+
+```text
+원격 실행 요청: ▶️ STARTED
+대상: Codex App
+PC: DESKTOP-NAME
+실행 전 상태: 미실행
+현재 실행 상태: 실행 확인 중
+프로세스: 확인 중
+
+최종 확인 결과: ✅ OK
+대상: Codex App
+PC: DESKTOP-NAME
+현재 실행 상태: 실행 중
+프로세스: 1개
 ```
 
 ## 설정
@@ -272,6 +329,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 - bot token이 노출되면 `@BotFather`에서 token을 rotate하세요.
 - listener는 Telegram long polling을 사용하며 로컬 HTTP 서버를 외부에 노출하지 않습니다.
 - `/codex_logs`는 Telegram으로 로그를 보내기 전에 token처럼 보이는 값과 일반적인 로컬 사용자 경로를 redaction합니다.
+
+더 자세한 보안 모델은 [SECURITY.md](SECURITY.md)를 확인하세요.
+
+## 지원
+
+issue를 만들기 전에 아래 명령을 실행하세요.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
+```
+
+그리고 redaction된 출력을 issue에 포함하세요. 자세한 내용은 [SUPPORT.ko.md](SUPPORT.ko.md)를 확인하세요.
 
 ## 검증
 

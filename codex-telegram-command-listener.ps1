@@ -335,6 +335,8 @@ function New-VersionMessage {
     $startApp = Get-CodexStartApp
     $package = Get-CodexAppxPackage
     $processes = Get-CodexAppProcessList
+    $toolVersion = Get-CodexToolVersion -Root $PSScriptRoot
+    $detection = Get-CodexDetectionSummary -ProcessPathPattern $CodexProcessPathPattern
     $now = Get-Date
 
     $lines = @(
@@ -343,10 +345,14 @@ function New-VersionMessage {
         "<b>Codex Version</b>",
         "대상: Codex App",
         "PC: $(ConvertTo-CodexTelegramHtml $DeviceName)",
+        "Tool version: $(ConvertTo-CodexTelegramHtml $toolVersion)",
         "실행 상태: $(if ($processes.Count -gt 0) { "실행 중" } else { "미실행" })",
         "프로세스: $($processes.Count)개",
         "App ID: $(ConvertTo-CodexTelegramHtml $CodexAppUserModelId)",
-        "Process pattern: $(ConvertTo-CodexTelegramHtml $CodexProcessPathPattern)"
+        "Process pattern: $(ConvertTo-CodexTelegramHtml $CodexProcessPathPattern)",
+        "StartApps candidates: $($detection.StartAppCount)개",
+        "Appx package candidates: $($detection.AppxPackageCount)개",
+        "Matching processes: $($detection.MatchingProcessCount)개"
     )
 
     if ($startApp) {
@@ -375,19 +381,7 @@ function New-VersionMessage {
 
 function ConvertTo-RedactedLogLine {
     param([AllowNull()][string]$Line)
-
-    if ($null -eq $Line) {
-        return ""
-    }
-
-    $redacted = $Line
-    $redacted = $redacted -replace 'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}', 'bot<redacted>'
-    $redacted = $redacted -replace '[0-9]{6,}:[A-Za-z0-9_-]{20,}', '<telegram-token-redacted>'
-    $redacted = $redacted -replace 'gho_[A-Za-z0-9_]+', 'gho_<redacted>'
-    $redacted = $redacted -replace '(TELEGRAM_(BOT_TOKEN|CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS)\s*=\s*)\S+', '$1<redacted>'
-    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\Documents\\Codex\\[^\s<]+', '<local-codex-path>'
-    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\AppData\\[^\s<]+', '<local-appdata-path>'
-    return $redacted
+    return ConvertTo-CodexRedactedText -Text $Line
 }
 
 function Get-RequestedLogLineCount {

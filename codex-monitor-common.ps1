@@ -1,6 +1,7 @@
 ﻿$script:CodexDefaultAppUserModelId = "OpenAI.Codex_2p2nqsd0c76g0!App"
 $script:CodexDefaultProcessPathPattern = "*\OpenAI.Codex_*\app\Codex.exe"
 $script:CodexDefaultMessageTitle = "Codex app monitor test"
+$script:CodexDefaultToolVersion = "0.1.0"
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -145,6 +146,20 @@ function Get-CodexMessageTitle {
     return Get-CodexEnvOrDefault -Name "CODEX_MONITOR_TITLE" -DefaultValue $script:CodexDefaultMessageTitle
 }
 
+function Get-CodexToolVersion {
+    param([string]$Root = $PSScriptRoot)
+
+    $versionFile = Join-Path $Root "VERSION"
+    if (Test-Path -LiteralPath $versionFile) {
+        $version = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+        if (![string]::IsNullOrWhiteSpace($version)) {
+            return $version
+        }
+    }
+
+    return $script:CodexDefaultToolVersion
+}
+
 function Get-CodexStartApp {
     try {
         return Get-StartApps |
@@ -155,6 +170,16 @@ function Get-CodexStartApp {
     }
 }
 
+function Get-CodexStartAppCandidates {
+    try {
+        return @(Get-StartApps |
+            Where-Object { $_.AppID -like "OpenAI.Codex*" -or $_.Name -like "*Codex*" } |
+            Select-Object -First 5)
+    } catch {
+        return @()
+    }
+}
+
 function Get-CodexAppxPackage {
     try {
         return Get-AppxPackage -Name "OpenAI.Codex*" -ErrorAction SilentlyContinue |
@@ -162,6 +187,24 @@ function Get-CodexAppxPackage {
             Select-Object -First 1
     } catch {
         return $null
+    }
+}
+
+function Get-CodexAppxPackageCandidates {
+    try {
+        return @(Get-AppxPackage -Name "OpenAI.Codex*" -ErrorAction SilentlyContinue |
+            Sort-Object Version -Descending |
+            Select-Object -First 5)
+    } catch {
+        return @()
+    }
+}
+
+function Get-CodexProcessCandidates {
+    try {
+        return @(Get-Process -Name Codex -ErrorAction SilentlyContinue | Select-Object -First 10)
+    } catch {
+        return @()
     }
 }
 
@@ -194,6 +237,36 @@ function Resolve-CodexAppSettings {
     }
 }
 
+function Get-CodexDetectionSummary {
+    param([AllowNull()][string]$ProcessPathPattern = $script:CodexDefaultProcessPathPattern)
+
+    $startApps = @(Get-CodexStartAppCandidates)
+    $packages = @(Get-CodexAppxPackageCandidates)
+    $processes = @(Get-CodexProcessCandidates)
+    $matchingProcesses = @()
+    if (![string]::IsNullOrWhiteSpace($ProcessPathPattern)) {
+        $matchingProcesses = @($processes | Where-Object {
+            try {
+                $_.Path -like $ProcessPathPattern
+            } catch {
+                $false
+            }
+        })
+    }
+
+    return [PSCustomObject]@{
+        StartAppCount = $startApps.Count
+        StartApps = $startApps
+        AppxPackageCount = $packages.Count
+        AppxPackages = $packages
+        CodexProcessCount = $processes.Count
+        MatchingProcessCount = $matchingProcesses.Count
+        Processes = $processes
+        MatchingProcesses = $matchingProcesses
+        ProcessPathPattern = $ProcessPathPattern
+    }
+}
+
 function Get-CodexAppProcesses {
     param([Parameter(Mandatory = $true)][string]$ProcessPathPattern)
 
@@ -205,6 +278,24 @@ function Get-CodexAppProcesses {
                 $false
             }
         }
+}
+
+function ConvertTo-CodexRedactedText {
+    param([AllowNull()][string]$Text)
+
+    if ($null -eq $Text) {
+        return ""
+    }
+
+    $redacted = $Text
+    $redacted = $redacted -replace 'bot[0-9]{6,}:[A-Za-z0-9_-]{20,}', 'bot<redacted>'
+    $redacted = $redacted -replace '[0-9]{6,}:[A-Za-z0-9_-]{20,}', '<telegram-token-redacted>'
+    $redacted = $redacted -replace 'gho_[A-Za-z0-9_]+', 'gho_<redacted>'
+    $redacted = $redacted -replace '(TELEGRAM_(BOT_TOKEN|CHAT_ID|PERSONAL_CHAT_ID|ALLOWED_CHAT_IDS|COMMAND_ALLOWED_CHAT_IDS)\s*=\s*)\S+', '$1<redacted>'
+    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\Documents\\Codex\\[^\s<]+', '<local-codex-path>'
+    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+\\AppData\\[^\s<]+', '<local-appdata-path>'
+    $redacted = $redacted -replace 'C:\\Users\\[^\\\s]+', '<local-user-path>'
+    return $redacted
 }
 
 function Start-CodexApp {

@@ -130,6 +130,30 @@ Check the setup:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\health-check.ps1
 ```
 
+Run a support-oriented diagnostic report:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
+```
+
+Use `-SupportBundle` when opening a GitHub issue. The output redacts Telegram tokens, chat IDs, and common local user paths.
+
+## Updating
+
+Update an existing clone:
+
+```powershell
+git pull
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1 -SkipConfigure
+```
+
+If the command listener was already installed, the installer refreshes the scheduled tasks and keeps the existing `.env`.
+
+## Releases
+
+GitHub Releases can be used for downloadable ZIP packages. This repository currently documents the release flow, but publishing an actual release is a separate maintainer action. See [RELEASE.md](RELEASE.md).
+
 ## Telegram Commands
 
 Send these messages to an authorized bot chat:
@@ -191,6 +215,39 @@ Short aliases:
 /l = /codex_logs
 /p = /ping
 /m = /help
+```
+
+## Example Telegram Messages
+
+Status OK:
+
+```text
+Codex app monitor test
+
+상태 확인 결과: ✅ OK
+대상: Codex App
+PC: DESKTOP-NAME
+현재 실행 상태: 실행 중
+프로세스: 1개
+
+Processed at: 2026-06-25 12:00:00
+```
+
+Remote start flow:
+
+```text
+원격 실행 요청: ▶️ STARTED
+대상: Codex App
+PC: DESKTOP-NAME
+실행 전 상태: 미실행
+현재 실행 상태: 실행 확인 중
+프로세스: 확인 중
+
+최종 확인 결과: ✅ OK
+대상: Codex App
+PC: DESKTOP-NAME
+현재 실행 상태: 실행 중
+프로세스: 1개
 ```
 
 ## Configuration
@@ -272,6 +329,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 - Rotate the bot token in `@BotFather` if it is ever exposed.
 - The listener uses Telegram long polling and does not expose a local HTTP server.
 - `/codex_logs` redacts token-like values and common local user paths before sending logs to Telegram.
+
+For a fuller security model, see [SECURITY.md](SECURITY.md).
+
+## Support
+
+Before opening an issue, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\diagnose.ps1 -SupportBundle
+```
+
+Then include the redacted output in the issue. See [SUPPORT.md](SUPPORT.md) for details.
 
 ## Validation
 

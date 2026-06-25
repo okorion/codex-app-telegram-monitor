@@ -10,6 +10,7 @@ $taskPath = "\Codex\"
 $offsetFile = Join-Path $PSScriptRoot "state\telegram-command-offset.txt"
 $heartbeatFile = Join-Path $PSScriptRoot "state\telegram-command-listener-heartbeat.txt"
 $logFile = Join-Path $PSScriptRoot "logs\telegram-command-listener.log"
+$toolVersion = Get-CodexToolVersion -Root $PSScriptRoot
 
 function Get-TaskHealth {
     param(
@@ -88,6 +89,7 @@ $deviceName = if (![string]::IsNullOrWhiteSpace($envValues["CODEX_DEVICE_NAME"])
 }
 
 [PSCustomObject]@{
+    ToolVersion = $toolVersion
     EnvFile = $envFile
     EnvFileExists = Test-Path -LiteralPath $envFile
     EnvFileAclProtected = $envFileProtected
