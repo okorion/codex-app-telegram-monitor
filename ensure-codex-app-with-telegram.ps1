@@ -107,7 +107,7 @@ if ($TelegramTest) {
         "대상: Codex 앱 상태 점검 알림",
         "결과: 전용 텔레그램 봇 연결 정상",
         "",
-        "Time: $(ConvertTo-TelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
+        "Processed at: $(ConvertTo-TelegramHtml $checkedAt.ToString("yyyy-MM-dd HH:mm:ss"))"
     ) -join "`n"
 
     Send-TelegramMessage -Message $message
