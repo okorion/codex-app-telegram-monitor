@@ -2,6 +2,15 @@
 
 Codex App Telegram Monitor의 주요 변경 사항을 기록합니다.
 
+## 0.6.0 - 2026-06-25
+
+- GitHub Release workflow를 재실행해도 기존 release를 안전하게 갱신하도록 `gh release edit` 및 `gh release upload --clobber` 경로를 추가했습니다.
+- release archive 검증을 `test_release_archive.ps1`로 분리하고 일반 CI에서도 ZIP 필수/금지 파일과 SHA256 checksum 생성을 dry-run으로 확인하도록 추가했습니다.
+- 그룹 채팅에서 알 수 없는 명령은 기본적으로 help를 보내지 않고 무시하도록 변경하고, 필요 시 `CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP=true`로 되돌릴 수 있게 했습니다.
+- watchdog이 listener 재시작 후 heartbeat를 다시 읽어 결과 출력에 재확인된 heartbeat 상태를 표시하도록 개선했습니다.
+- 로컬 로그 파일에 쓰기 전에 token-like 값과 일반적인 로컬 사용자 경로를 redaction하도록 강화했습니다.
+- boolean env 파싱, 로컬 로그 redaction, 그룹 unknown 명령 처리 테스트를 추가했습니다.
+
 ## 0.5.0 - 2026-06-25
 
 - 그룹 채팅에서 `/s@other_bot`처럼 다른 봇을 명시한 명령에는 Codex 관리봇이 반응하지 않도록 target 판별을 강화했습니다.

@@ -93,6 +93,24 @@ function Get-CodexInt64EnvOrDefault {
     return $parsed
 }
 
+function Get-CodexBoolEnvOrDefault {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][bool]$DefaultValue
+    )
+
+    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $DefaultValue
+    }
+
+    switch ($value.Trim().ToLowerInvariant()) {
+        { $_ -in @("1", "true", "yes", "y", "on") } { return $true }
+        { $_ -in @("0", "false", "no", "n", "off") } { return $false }
+        default { return $DefaultValue }
+    }
+}
+
 function Test-CodexAutoConfigValue {
     param([AllowNull()][string]$Value)
 
@@ -698,7 +716,8 @@ function Write-CodexLog {
     Rotate-CodexLogFile -Path $Path -MaxBytes $MaxBytes -KeepFiles $KeepFiles
 
     $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-    Add-Content -LiteralPath $Path -Encoding UTF8 -Value "[$timestamp] $Message"
+    $redactedMessage = ConvertTo-CodexRedactedText -Text $Message
+    Add-Content -LiteralPath $Path -Encoding UTF8 -Value "[$timestamp] $redactedMessage"
 }
 
 function Save-CodexListenerHeartbeat {

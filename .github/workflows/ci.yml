@@ -54,6 +54,18 @@ jobs:
           Import-Module Pester -MinimumVersion 5.0
           Invoke-Pester -Path .\tests -CI
 
+      - name: release archive dry-run
+        shell: pwsh
+        run: |
+          $version = (Get-Content -LiteralPath .\VERSION -Raw -Encoding UTF8).Trim()
+          $archive = Join-Path $env:TEMP "codex-app-telegram-monitor-$version-ci.zip"
+          powershell.exe `
+            -NoProfile `
+            -ExecutionPolicy Bypass `
+            -File .\test_release_archive.ps1 `
+            -Version $version `
+            -ArchivePath $archive
+
       - name: 민감정보 패턴 스캔
         shell: pwsh
         run: |
@@ -66,7 +78,7 @@ jobs:
           )
           $files = git ls-files
           foreach ($file in $files) {
-            $text = Get-Content -LiteralPath $file -Raw -ErrorAction SilentlyContinue
+            $text = Get-Content -LiteralPath $file -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
             foreach ($pattern in $patterns) {
               if ($text -match $pattern) {
                 throw "Potential secret or local path found in $file"

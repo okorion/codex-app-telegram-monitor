@@ -51,7 +51,7 @@ Send these commands in an authorized bot chat:
 | `/l 30` | `/codex_logs 30` | Show a specific number of recent log lines. Accepted range is 5 to 50. |
 | `/m` | `/help` | Show the command list. |
 
-In private chats, some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents. In groups and supergroups, the listener responds only to `/` commands or messages that mention the bot, so ordinary group conversation does not trigger help replies. Commands addressed to another bot, such as `/s@other_bot`, are ignored.
+In private chats, some natural-language messages are also supported, such as `codex status`, `codex start`, and Korean equivalents. In groups and supergroups, the listener responds only to `/` commands or messages that mention the bot, so ordinary group conversation does not trigger help replies. Commands addressed to another bot, such as `/s@other_bot`, are ignored, and unknown group commands such as `/foo` are ignored without a help reply by default.
 
 ## GUI Settings Tool
 
@@ -221,6 +221,7 @@ CODEX_LOG_MAX_BYTES=1048576
 CODEX_LOG_KEEP_FILES=5
 CODEX_HEARTBEAT_STALE_SECONDS=120
 CODEX_POLLING_CONFLICT_STALE_SECONDS=3600
+CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP=false
 ```
 
 `TELEGRAM_ALLOWED_CHAT_IDS` accepts comma, semicolon, or whitespace separated chat IDs. When it is empty, the listener falls back to `TELEGRAM_PERSONAL_CHAT_ID` and `TELEGRAM_CHAT_ID`.
@@ -240,6 +241,8 @@ When `CODEX_PROCESS_PATH_PATTERN=auto`, the scripts use `*\OpenAI.Codex_*\app\Co
 `CODEX_HEARTBEAT_STALE_SECONDS` controls when `/codex_health` reports the listener heartbeat as stale.
 
 `CODEX_POLLING_CONFLICT_STALE_SECONDS` controls how far back `/h`, `diagnose.ps1`, and `health-check.ps1` treat Telegram polling conflict logs as current. The default is 3600 seconds.
+
+`CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP` controls whether unknown group commands send the help message. The default is `false` to reduce group noise. Private chats still show help for unknown commands.
 
 ## Multiple PCs
 
@@ -303,7 +306,7 @@ For a fuller security model, see [SECURITY.en.md](SECURITY.en.md).
 
 ## Releases
 
-GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive with a SHA256 checksum. Release notes use only the matching version section from `CHANGELOG.md`. See [RELEASE.en.md](RELEASE.en.md).
+GitHub Releases can be used for downloadable ZIP packages. A tag named `vX.Y.Z` triggers the Release workflow, validates `VERSION`, and publishes a tracked-file ZIP archive with a SHA256 checksum. Release notes use only the matching version section from `CHANGELOG.md`. Rerunning the workflow for the same tag updates the existing release assets. See [RELEASE.en.md](RELEASE.en.md).
 
 ## Validation
 

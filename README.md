@@ -51,7 +51,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install_all.ps1
 | `/l 30` | `/codex_logs 30` | 지정한 줄 수만큼 최근 로그를 표시합니다. 허용 범위는 5-50줄입니다. |
 | `/m` | `/help` | 사용 가능한 명령 목록을 표시합니다. |
 
-개인 채팅에서는 자연어에 가까운 일부 메시지도 지원합니다. 예를 들어 `codex 상태`, `codex 실행`, `코덱스 앱 켜줘` 같은 메시지를 인식합니다. 그룹이나 supergroup에서는 일반 대화에 help가 나가지 않도록 `/` 명령 또는 bot mention이 있는 메시지에만 반응합니다. `/s@other_bot`처럼 다른 봇을 명시한 명령은 무시합니다.
+개인 채팅에서는 자연어에 가까운 일부 메시지도 지원합니다. 예를 들어 `codex 상태`, `codex 실행`, `코덱스 앱 켜줘` 같은 메시지를 인식합니다. 그룹이나 supergroup에서는 일반 대화에 help가 나가지 않도록 `/` 명령 또는 bot mention이 있는 메시지에만 반응합니다. `/s@other_bot`처럼 다른 봇을 명시한 명령은 무시하고, `/foo`처럼 알 수 없는 그룹 명령은 기본적으로 help 없이 무시합니다.
 
 ## GUI 설정 도구
 
@@ -223,6 +223,7 @@ CODEX_LOG_MAX_BYTES=1048576
 CODEX_LOG_KEEP_FILES=5
 CODEX_HEARTBEAT_STALE_SECONDS=120
 CODEX_POLLING_CONFLICT_STALE_SECONDS=3600
+CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP=false
 ```
 
 `TELEGRAM_ALLOWED_CHAT_IDS`는 쉼표, 세미콜론, 공백으로 구분된 chat ID 목록을 받습니다. 비어 있으면 `TELEGRAM_PERSONAL_CHAT_ID`와 `TELEGRAM_CHAT_ID`를 사용합니다.
@@ -242,6 +243,8 @@ CODEX_POLLING_CONFLICT_STALE_SECONDS=3600
 `CODEX_HEARTBEAT_STALE_SECONDS`는 `/codex_health`에서 listener heartbeat를 stale로 판단하는 기준입니다.
 
 `CODEX_POLLING_CONFLICT_STALE_SECONDS`는 `/h`, `diagnose.ps1`, `health-check.ps1`에서 Telegram polling conflict 로그를 최근 문제로 볼 시간 범위입니다. 기본값은 3600초입니다.
+
+`CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP`는 그룹 채팅에서 알 수 없는 명령을 받았을 때 help를 보낼지 결정합니다. 기본값은 `false`라서 그룹 소음을 줄입니다. 개인 채팅에서는 알 수 없는 명령에 help를 보냅니다.
 
 ## 여러 PC에서 사용
 
@@ -305,7 +308,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\uninstall_command_list
 
 ## 릴리스
 
-GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP과 SHA256 checksum을 게시합니다. Release notes는 `CHANGELOG.md`의 해당 version 섹션만 사용합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
+GitHub Releases는 다운로드 가능한 ZIP 패키지 배포에 사용할 수 있습니다. `vX.Y.Z` 형식의 tag를 push하면 Release workflow가 `VERSION`을 검증하고 추적 파일만 포함한 ZIP과 SHA256 checksum을 게시합니다. Release notes는 `CHANGELOG.md`의 해당 version 섹션만 사용합니다. 같은 tag로 workflow를 다시 실행하면 기존 release asset을 갱신합니다. 자세한 절차는 [RELEASE.md](RELEASE.md)를 확인하세요.
 
 ## 검증
 

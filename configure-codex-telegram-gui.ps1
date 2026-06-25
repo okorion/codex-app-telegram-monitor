@@ -282,7 +282,8 @@ $saveButton.Add_Click({
             "CODEX_LOG_MAX_BYTES=$(Get-ExistingValue -Key "CODEX_LOG_MAX_BYTES" -Default "1048576")",
             "CODEX_LOG_KEEP_FILES=$(Get-ExistingValue -Key "CODEX_LOG_KEEP_FILES" -Default "5")",
             "CODEX_HEARTBEAT_STALE_SECONDS=$(Get-ExistingValue -Key "CODEX_HEARTBEAT_STALE_SECONDS" -Default "120")",
-            "CODEX_POLLING_CONFLICT_STALE_SECONDS=$(Get-ExistingValue -Key "CODEX_POLLING_CONFLICT_STALE_SECONDS" -Default "3600")"
+            "CODEX_POLLING_CONFLICT_STALE_SECONDS=$(Get-ExistingValue -Key "CODEX_POLLING_CONFLICT_STALE_SECONDS" -Default "3600")",
+            "CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP=$(Get-ExistingValue -Key "CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP" -Default "false")"
         )
 
         $envDir = Split-Path -Parent $EnvFile

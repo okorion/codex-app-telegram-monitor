@@ -446,6 +446,10 @@ function Get-RequestedLogLineCount {
     return $count
 }
 
+function Get-GroupUnknownCommandsShowHelp {
+    return Get-CodexBoolEnvOrDefault -Name "CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP" -DefaultValue $false
+}
+
 function New-LogsMessage {
     param([int]$Count = 20)
 
@@ -687,6 +691,11 @@ function Handle-TelegramUpdate {
     }
 
     $commandType = Get-CommandType -Text $Update.message.text
+    if (!$isPrivateChat -and $commandType -eq "unknown" -and !(Get-GroupUnknownCommandsShowHelp)) {
+        Write-ListenerLog "그룹 채팅의 알 수 없는 명령을 무시했습니다."
+        return
+    }
+
     switch ($commandType) {
         "help" {
             Send-TelegramMessage -ChatId $chatId -Message (New-HelpMessage)

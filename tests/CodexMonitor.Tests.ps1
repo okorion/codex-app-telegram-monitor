@@ -11,6 +11,7 @@
         $script:previousChatId = [Environment]::GetEnvironmentVariable("TELEGRAM_CHAT_ID", "Process")
         $script:previousPersonalChatId = [Environment]::GetEnvironmentVariable("TELEGRAM_PERSONAL_CHAT_ID", "Process")
         $script:previousTitle = [Environment]::GetEnvironmentVariable("CODEX_MONITOR_TITLE", "Process")
+        $script:previousGroupUnknownShowHelp = [Environment]::GetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", "Process")
     }
 
     AfterEach {
@@ -20,6 +21,7 @@
         [Environment]::SetEnvironmentVariable("TELEGRAM_CHAT_ID", $script:previousChatId, "Process")
         [Environment]::SetEnvironmentVariable("TELEGRAM_PERSONAL_CHAT_ID", $script:previousPersonalChatId, "Process")
         [Environment]::SetEnvironmentVariable("CODEX_MONITOR_TITLE", $script:previousTitle, "Process")
+        [Environment]::SetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", $script:previousGroupUnknownShowHelp, "Process")
     }
 
     It "splits comma, semicolon, and whitespace separated chat IDs" {
@@ -116,6 +118,30 @@
         $redacted | Should -Not -Match "alice"
         $redacted | Should -Match "<local-appdata-path>"
         $redacted | Should -Match "<local-codex-path>"
+    }
+
+    It "parses boolean environment values with defaults" {
+        [Environment]::SetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", "yes", "Process")
+        Get-CodexBoolEnvOrDefault -Name "CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP" -DefaultValue $false | Should -BeTrue
+
+        [Environment]::SetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", "off", "Process")
+        Get-CodexBoolEnvOrDefault -Name "CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP" -DefaultValue $true | Should -BeFalse
+
+        [Environment]::SetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", "not-a-bool", "Process")
+        Get-CodexBoolEnvOrDefault -Name "CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP" -DefaultValue $true | Should -BeTrue
+    }
+
+    It "redacts sensitive text before writing local logs" {
+        $logPath = Join-Path $TestDrive "sample.log"
+        $token = "123456789:" + "abcdefghijklmnopqrstuvwxyzABCDE"
+        $chatIdLine = "TELEGRAM_CHAT_ID=" + "123456789"
+
+        Write-CodexLog -Path $logPath -Message "token=$token $chatIdLine"
+        $logText = Get-Content -LiteralPath $logPath -Raw -Encoding UTF8
+
+        $logText | Should -Not -Match ([regex]::Escape($token))
+        $logText | Should -Match "<telegram-token-redacted>"
+        $logText | Should -Match "TELEGRAM_CHAT_ID=<redacted>"
     }
 
     It "falls back start permissions to command permissions" {
@@ -287,6 +313,83 @@ Describe "Codex Telegram listener helpers" {
 
         $script:sentMessages.Count | Should -Be 0
         $script:listenerLogs -join "`n" | Should -Match "그룹 채팅의 일반 메시지"
+    }
+
+    It "ignores unknown group slash commands by default" {
+        $script:sentMessages = @()
+        $script:listenerLogs = @()
+        $script:BotUsername = "codex_manager_bot"
+        [Environment]::SetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", $null, "Process")
+
+        function Test-AllowedChatId {
+            param([Parameter(Mandatory = $true)][string]$ChatId)
+            return $true
+        }
+
+        function Send-TelegramMessage {
+            param(
+                [Parameter(Mandatory = $true)][string]$ChatId,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            $script:sentMessages += $Message
+        }
+
+        function Write-ListenerLog {
+            param([Parameter(Mandatory = $true)][string]$Message)
+            $script:listenerLogs += $Message
+        }
+
+        $update = [PSCustomObject]@{
+            message = [PSCustomObject]@{
+                text = "/foo"
+                chat = [PSCustomObject]@{
+                    id = 111
+                    type = "group"
+                }
+            }
+        }
+
+        Handle-TelegramUpdate -Update $update
+
+        $script:sentMessages.Count | Should -Be 0
+        $script:listenerLogs -join "`n" | Should -Match "알 수 없는 명령"
+    }
+
+    It "can show help for unknown group commands when configured" {
+        $script:sentMessages = @()
+        $script:listenerLogs = @()
+        $script:BotUsername = "codex_manager_bot"
+        [Environment]::SetEnvironmentVariable("CODEX_GROUP_UNKNOWN_COMMAND_SHOW_HELP", "true", "Process")
+
+        function Test-AllowedChatId {
+            param([Parameter(Mandatory = $true)][string]$ChatId)
+            return $true
+        }
+
+        function Send-TelegramMessage {
+            param(
+                [Parameter(Mandatory = $true)][string]$ChatId,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            $script:sentMessages += $Message
+        }
+
+        $update = [PSCustomObject]@{
+            message = [PSCustomObject]@{
+                text = "/foo"
+                chat = [PSCustomObject]@{
+                    id = 111
+                    type = "group"
+                }
+            }
+        }
+
+        Handle-TelegramUpdate -Update $update
+
+        $script:sentMessages.Count | Should -Be 1
+        $script:sentMessages[0] | Should -Match "사용 가능한 명령"
     }
 
     It "shows polling conflict state in the health message" {

@@ -17,18 +17,29 @@ function Write-WatchdogLog {
     Write-CodexLog -Path $watchdogLogFile -Message $Message
 }
 
+function Get-WatchdogHeartbeatSnapshot {
+    $heartbeatAt = Read-CodexListenerHeartbeat -Path $heartbeatFile
+    $staleSeconds = Get-CodexIntEnvOrDefault -Name "CODEX_HEARTBEAT_STALE_SECONDS" -DefaultValue 120 -MinValue 30
+    $ageSeconds = $null
+    $fresh = $false
+    if ($null -ne $heartbeatAt) {
+        $ageSeconds = [math]::Max(0, [int]((Get-Date) - $heartbeatAt).TotalSeconds)
+        $fresh = $ageSeconds -le $staleSeconds
+    }
+
+    return @{
+        At = $heartbeatAt
+        StaleSeconds = $staleSeconds
+        AgeSeconds = $ageSeconds
+        Fresh = $fresh
+    }
+}
+
 if (Test-Path -LiteralPath $EnvFile) {
     Import-CodexDotEnv -Path $EnvFile
 }
 
-$heartbeatAt = Read-CodexListenerHeartbeat -Path $heartbeatFile
-$heartbeatStaleSeconds = Get-CodexIntEnvOrDefault -Name "CODEX_HEARTBEAT_STALE_SECONDS" -DefaultValue 120 -MinValue 30
-$heartbeatAgeSeconds = $null
-$heartbeatFresh = $false
-if ($null -ne $heartbeatAt) {
-    $heartbeatAgeSeconds = [math]::Max(0, [int]((Get-Date) - $heartbeatAt).TotalSeconds)
-    $heartbeatFresh = $heartbeatAgeSeconds -le $heartbeatStaleSeconds
-}
+$heartbeat = Get-WatchdogHeartbeatSnapshot
 
 $task = Get-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
 if (!$task) {
@@ -37,8 +48,8 @@ if (!$task) {
 
 $restarted = $false
 $restartReason = ""
-if ($task.State -eq "Running" -and !$heartbeatFresh) {
-    $restartReason = if ($null -eq $heartbeatAt) { "missing heartbeat" } else { "stale heartbeat (${heartbeatAgeSeconds}s > ${heartbeatStaleSeconds}s)" }
+if ($task.State -eq "Running" -and !$heartbeat.Fresh) {
+    $restartReason = if ($null -eq $heartbeat.At) { "missing heartbeat" } else { "stale heartbeat ($($heartbeat.AgeSeconds)s > $($heartbeat.StaleSeconds)s)" }
     Write-WatchdogLog "Listener 작업은 Running이지만 $restartReason 상태라 재시작합니다."
     Stop-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
@@ -55,6 +66,11 @@ if ($task.State -eq "Running" -and !$heartbeatFresh) {
     $restarted = $true
 }
 
+if ($restarted) {
+    Start-Sleep -Seconds 5
+    $heartbeat = Get-WatchdogHeartbeatSnapshot
+}
+
 $info = Get-ScheduledTaskInfo -TaskName $taskName -TaskPath $taskPath
 
 [PSCustomObject]@{
@@ -63,9 +79,10 @@ $info = Get-ScheduledTaskInfo -TaskName $taskName -TaskPath $taskPath
     State = $task.State
     LastRunTime = $info.LastRunTime
     LastTaskResult = $info.LastTaskResult
-    HeartbeatAt = if ($heartbeatAt) { $heartbeatAt.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
-    HeartbeatAgeSeconds = $heartbeatAgeSeconds
-    HeartbeatFresh = $heartbeatFresh
+    HeartbeatAt = if ($heartbeat.At) { $heartbeat.At.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
+    HeartbeatAgeSeconds = $heartbeat.AgeSeconds
+    HeartbeatFresh = $heartbeat.Fresh
+    HeartbeatStaleSeconds = $heartbeat.StaleSeconds
     Restarted = $restarted
     RestartReason = $restartReason
     EnvFile = $EnvFile

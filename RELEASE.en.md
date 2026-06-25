@@ -20,6 +20,7 @@ foreach ($script in $scripts) {
 }
 
 git diff --check
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\test_release_archive.ps1
 ```
 
 4. Confirm ignored local state is not tracked:
@@ -31,12 +32,12 @@ git ls-files .env logs state
 5. Create a tag matching `VERSION`, for example:
 
 ```powershell
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
-6. The GitHub Release workflow validates `VERSION`, creates a tracked-file ZIP and SHA256 checksum with `git archive`, and publishes only the matching `CHANGELOG.md` version section as release notes.
+6. The GitHub Release workflow validates `VERSION`, creates a tracked-file ZIP and SHA256 checksum through `test_release_archive.ps1`, and publishes only the matching `CHANGELOG.md` version section as release notes.
 
-If needed, manually run the `릴리스` workflow in GitHub Actions and enter a `vX.Y.Z` tag to rerun the same publishing flow.
+If needed, manually run the `릴리스` workflow in GitHub Actions and enter a `vX.Y.Z` tag to rerun the same publishing flow. If a release already exists for the same tag, the workflow updates the metadata and ZIP/checksum assets.
 
 Do not include `.env`, `logs/`, or `state/` in release artifacts.
