@@ -1,5 +1,5 @@
 ﻿$script:CodexDefaultAppUserModelId = "OpenAI.Codex_2p2nqsd0c76g0!App"
-$script:CodexDefaultProcessPathPattern = "*\OpenAI.Codex_*\app\Codex.exe"
+$script:CodexDefaultProcessPathPattern = "auto"
 $script:CodexDefaultMessageTitle = "Codex app monitor test"
 $script:CodexDefaultToolVersion = "0.1.0"
 $script:CodexDefaultPollingConflictStaleSeconds = 3600
@@ -404,7 +404,7 @@ function Get-CodexAppxPackageCandidates {
 
 function Get-CodexProcessCandidates {
     try {
-        return @(Get-Process -Name Codex -ErrorAction SilentlyContinue | Select-Object -First 10)
+        return @(Get-Process -Name Codex, ChatGPT -ErrorAction SilentlyContinue)
     } catch {
         return @()
     }
@@ -439,6 +439,24 @@ function Resolve-CodexAppSettings {
     }
 }
 
+function Test-CodexAppProcessPath {
+    param(
+        [AllowNull()][string]$Path,
+        [AllowNull()][string]$ProcessPathPattern = $script:CodexDefaultProcessPathPattern
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+    if (!(Test-CodexAutoConfigValue -Value $ProcessPathPattern)) {
+        return $Path -like $ProcessPathPattern
+    }
+
+    # Match desktop executables only, not the bundled CLI or the ChatGPT app.
+    return $Path -like "*\OpenAI.Codex_*\app\Codex.exe" -or
+        $Path -like "*\OpenAI.Codex_*\app\ChatGPT.exe"
+}
+
 function Get-CodexDetectionSummary {
     param([AllowNull()][string]$ProcessPathPattern = $script:CodexDefaultProcessPathPattern)
 
@@ -449,7 +467,7 @@ function Get-CodexDetectionSummary {
     if (![string]::IsNullOrWhiteSpace($ProcessPathPattern)) {
         $matchingProcesses = @($processes | Where-Object {
             try {
-                $_.Path -like $ProcessPathPattern
+                Test-CodexAppProcessPath -Path $_.Path -ProcessPathPattern $ProcessPathPattern
             } catch {
                 $false
             }
@@ -472,10 +490,10 @@ function Get-CodexDetectionSummary {
 function Get-CodexAppProcesses {
     param([Parameter(Mandatory = $true)][string]$ProcessPathPattern)
 
-    return Get-Process -Name Codex -ErrorAction SilentlyContinue |
+    return Get-CodexProcessCandidates |
         Where-Object {
             try {
-                $_.Path -like $ProcessPathPattern
+                Test-CodexAppProcessPath -Path $_.Path -ProcessPathPattern $ProcessPathPattern
             } catch {
                 $false
             }
